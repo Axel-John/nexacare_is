@@ -4,17 +4,13 @@ from database import init_db
 
 def main(page: ft.Page):
     init_db()
-    
-    # Window settings
-    page.window_width = 1920
-    page.window_height = 1080
-    page.window_maximized = True
-    page.window_full_screen = True
+
+    # Initial window settings
     page.window_minimizable = False
-    page.window_resizable = True
+    page.window_resizable = False
     page.bgcolor = ft.Colors.WHITE
     page.padding = 0
-    
+
     # Theme settings
     page.theme = ft.Theme(
         font_family="Poppins",
@@ -27,18 +23,20 @@ def main(page: ft.Page):
         "Lato": "https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Regular.ttf",
         "LatoMedium": "https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Bold.ttf"
     }
-    
-    # Force full screen
-    def maximize(e=None):
-        page.window_maximized = True
+
+    # Use a timer to set fullscreen after UI is loaded
+    def set_fullscreen(e):
         page.window_full_screen = True
+        page.window_maximized = True
         page.update()
-    
-    page.on_resize = maximize
-    page.on_window_event = maximize
-    maximize()  # Call immediately
-    
+        page.timer_interval = 0  # Stop the timer
+
+    page.timer_interval = 0.2  # 200ms after load
+    page.on_timer = set_fullscreen
+
     login_ui(page)
 
 if __name__ == "__main__":
+    # Use view=ft.FLET_APP for desktop, or view=None for default browser
     ft.app(target=main)
+

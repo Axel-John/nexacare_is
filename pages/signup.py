@@ -1,40 +1,332 @@
 import flet as ft
-from .login import PRIMARY_BLUE, SECONDARY_BLUE, LIGHT_BLUE, HEADING_STYLE, SUBHEADING_STYLE, BODY_STYLE, BUTTON_STYLE, ACCENT_TEAL
+from .dashboards import doctor, hr, admin
+from models.user import get_user
+from .login import login_ui  # Remove: , login_user
+from database import create_user, check_email_exists
+
+# Define color constants
+PRIMARY_BLUE = "#2A70FF"
+SECONDARY_BLUE = "#31D7E9"
+LIGHT_BLUE = "#EBF3FF"
+ACCENT_TEAL = "#2CAFA4"
+
+# Define text styles
+HEADING_STYLE = ft.TextStyle(
+    size=32,
+    weight=ft.FontWeight.W_600,
+    font_family="PoppinsSemiBold"
+)
+
+SUBHEADING_STYLE = ft.TextStyle(
+    size=18,
+    weight=ft.FontWeight.W_500,
+    font_family="PoppinsMedium"
+)
+
+BODY_STYLE = ft.TextStyle(
+    size=15,
+    font_family="Lato"
+)
+
+BUTTON_STYLE = ft.TextStyle(
+    size=16,
+    weight=ft.FontWeight.W_500,
+    font_family="PoppinsMedium"
+)
+
+def show_error(page, message):
+    snack = ft.SnackBar(
+        content=ft.Text(message, color=ft.Colors.WHITE, style=BODY_STYLE),
+        bgcolor=ft.Colors.RED_700,
+        duration=3000,
+        open=True
+    )
+    page.snack_bar = snack
+    page.update()
+
+def show_success(page, message):
+    snack = ft.SnackBar(
+        content=ft.Text(message, color=ft.Colors.WHITE, style=BODY_STYLE),
+        bgcolor=ft.Colors.GREEN_700,
+        duration=3000,
+        open=True
+    )
+    page.snack_bar = snack
+    page.update()
 
 def signup_ui(page: ft.Page):
     page.title = "Sign Up - NexaCare"
-    page.padding = 50
+    page.padding = 0  # Remove page padding
     page.bgcolor = LIGHT_BLUE
     page.window_resizable = True
     page.window_maximized = True
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
-    page.scroll = "auto"
+    page.scroll = None  # Disable scrolling
 
     def on_role_change(e):
         role_dropdown.value = e.data
         page.update()
 
+    # Add error texts for password and confirm password fields
+    password_error_text = ft.Text("", color=ft.Colors.RED, size=14, visible=False)
+    confirm_password_error_text = ft.Text("", color=ft.Colors.RED, size=14, visible=False)
+
     def validate_passwords():
+        password_error_text.value = ""
+        password_error_text.visible = False
+        confirm_password_error_text.value = ""
+        confirm_password_error_text.visible = False
         if password_field.value != confirm_password_field.value:
-            page.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text("Passwords do not match!", style=BODY_STYLE),
-                    bgcolor=ft.Colors.ERROR
-                )
-            )
+            password_error_text.value = "Passwords do not match"
+            password_error_text.visible = True
+            confirm_password_error_text.value = "Passwords do not match"
+            confirm_password_error_text.visible = True
+            page.update()
             return False
         return True
 
+    def validate_form():
+        print("[DEBUG] Starting form validation")
+        
+        if not first_name.value or len(first_name.value.strip()) < 2:
+            print("[DEBUG] First name validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("First name must be at least 2 characters long", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not last_name.value or len(last_name.value.strip()) < 2:
+            print("[DEBUG] Last name validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Last name must be at least 2 characters long", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not email_field.value:
+            print("[DEBUG] Email empty")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter your email address", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        email = email_field.value.strip()
+        if '@' not in email or '.' not in email or len(email) < 5:
+            print("[DEBUG] Invalid email format")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter a valid email address", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not role_dropdown.value:
+            print("[DEBUG] No role selected")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please select your role", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if role_dropdown.value not in ['Doctor', 'HR']:
+            print("[DEBUG] Invalid role selected")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Invalid role selected", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not password_field.value or len(password_field.value) < 8:
+            print("[DEBUG] Password validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Password must be at least 8 characters long", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not confirm_password_field.value:
+            print("[DEBUG] Confirm password empty")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please confirm your password", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not maiden_name.value or len(maiden_name.value.strip()) < 2:
+            print("[DEBUG] Mother's maiden name validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter your mother's maiden name", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not nickname.value or len(nickname.value.strip()) < 2:
+            print("[DEBUG] Nickname validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter your childhood nickname", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not fav_media.value or len(fav_media.value.strip()) < 2:
+            print("[DEBUG] Favorite media validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter your favorite book or movie", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        if not birth_city.value or len(birth_city.value.strip()) < 2:
+            print("[DEBUG] Birth city validation failed")
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text("Please enter your city of birth", size=16, color=ft.Colors.RED_700)],
+                success=False
+            )
+            return False
+            
+        print("[DEBUG] Form validation successful")
+        return True
+
+    def show_dialog(title, content, success=True):
+        print(f"[DEBUG] Showing dialog - Title: {title}, Success: {success}")
+        
+        def close_dlg(e):
+            print("[DEBUG] Dialog close button clicked")
+            overlay.visible = False
+            page.update()
+            if success:
+                print("[DEBUG] Success dialog closed, redirecting to login")
+                page.clean()
+                login_ui(page)
+
+        # Create a semi-transparent overlay
+        overlay = ft.Container(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(title, style=HEADING_STYLE, size=24, color=ACCENT_TEAL),
+                        ft.Container(height=20),
+                        *content,
+                        ft.Container(height=30),
+                        ft.ElevatedButton(
+                            "OK",
+                            width=200,
+                            height=40,
+                            on_click=close_dlg,
+                            style=ft.ButtonStyle(
+                                bgcolor=ACCENT_TEAL,
+                                color=ft.Colors.WHITE
+                            )
+                        )
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                width=400,
+                height=300,
+                bgcolor=ft.Colors.WHITE,
+                border_radius=10,
+                padding=30,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color=ft.Colors.with_opacity(0.25, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 4)
+                )
+            ),
+            expand=True,  # This will make it fill the available space
+            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.BLACK),
+            alignment=ft.alignment.center,
+            visible=True
+        )
+
+        # Add the overlay to the page
+        page.overlay.append(overlay)
+        page.update()
+        print("[DEBUG] Dialog should now be visible")
+
     def on_signup(e):
+        print("[DEBUG] Sign up button clicked")
+        # Clear previous error messages
+        password_error_text.value = ""
+        password_error_text.visible = False
+        confirm_password_error_text.value = ""
+        confirm_password_error_text.visible = False
+        page.update()
+        
+        print("[DEBUG] Validating passwords...")
         if not validate_passwords():
+            print("[DEBUG] Password validation failed")
             return
-        # TODO: Implement signup logic
-        pass
+            
+        print("[DEBUG] Validating form...")
+        if not validate_form():
+            print("[DEBUG] Form validation failed")
+            return
+
+        print("[DEBUG] Creating user...")
+        result = create_user(
+            first_name=first_name.value.strip(),
+            last_name=last_name.value.strip(),
+            email=email_field.value.strip().lower(),
+            password=password_field.value,
+            role=role_dropdown.value
+        )
+        print(f"[DEBUG] Create user result: {result}")
+        
+        if isinstance(result, tuple) and len(result) == 3:
+            success, message, user_id = result
+        else:
+            success, message = result
+            user_id = None
+
+        print(f"[DEBUG] Success: {success}, Message: {message}, User ID: {user_id}")
+
+        if success:
+            # Clear all fields before showing success dialog
+            first_name.value = ""
+            last_name.value = ""
+            email_field.value = ""
+            password_field.value = ""
+            confirm_password_field.value = ""
+            maiden_name.value = ""
+            nickname.value = ""
+            fav_media.value = ""
+            birth_city.value = ""
+            role_dropdown.value = None
+            page.update()
+            
+            show_dialog(
+                "Account Created!",
+                [
+                    ft.Text(message, style=BODY_STYLE),
+                    ft.Text(f"Your User ID: {user_id or ''}", style=BODY_STYLE, color=ACCENT_TEAL)
+                ],
+                success=True
+            )
+        else:
+            show_dialog(
+                "Sign Up Failed",
+                [ft.Text(message, style=BODY_STYLE, color=ft.Colors.RED_700)],
+                success=False
+            )
 
     def go_back_to_login(e):
         page.clean()
-        from .login import login_ui
         login_ui(page)
 
     # Left Panel - Personal Information
@@ -43,11 +335,7 @@ def signup_ui(page: ft.Page):
         width=190,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -56,11 +344,7 @@ def signup_ui(page: ft.Page):
         width=130,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -69,11 +353,7 @@ def signup_ui(page: ft.Page):
         width=200,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -86,11 +366,7 @@ def signup_ui(page: ft.Page):
         ],
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE,
         on_change=on_role_change
     )
@@ -102,11 +378,7 @@ def signup_ui(page: ft.Page):
         width=350,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -117,11 +389,7 @@ def signup_ui(page: ft.Page):
         width=350,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -155,13 +423,15 @@ def signup_ui(page: ft.Page):
                 ),
                 ft.Container(height=10),
                 ft.Row( 
-                    [email_field, ft.Container(width=2),role_dropdown],
+                    [email_field, ft.Container(width=2), role_dropdown],
                     alignment=ft.MainAxisAlignment.CENTER
                 ),
                 ft.Container(height=10),
                 password_field,
+                ft.Container(password_error_text, alignment=ft.alignment.center_left, padding=ft.padding.only(left=4, top=2, bottom=2)),
                 ft.Container(height=10),
                 confirm_password_field,
+                ft.Container(confirm_password_error_text, alignment=ft.alignment.center_left, padding=ft.padding.only(left=4, top=2, bottom=2)),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=5,
@@ -171,6 +441,7 @@ def signup_ui(page: ft.Page):
         border_radius=10,
         width=400,
     )
+    
 
     # Right Panel - Security Questions
     maiden_name = ft.TextField(
@@ -178,11 +449,7 @@ def signup_ui(page: ft.Page):
         width=300,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -191,11 +458,7 @@ def signup_ui(page: ft.Page):
         width=300,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -204,11 +467,7 @@ def signup_ui(page: ft.Page):
         width=300,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -217,11 +476,7 @@ def signup_ui(page: ft.Page):
         width=300,
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
-        text_style=ft.TextStyle(
-            size=15,
-            color="black",
-            font_family="Lato"
-        ),
+        text_style=BODY_STYLE,
         label_style=BODY_STYLE
     )
 
@@ -265,7 +520,7 @@ def signup_ui(page: ft.Page):
                     ),
                     width=300,
                     height=50,
-                    on_click=on_signup,
+                    on_click=on_signup,  # <-- Ensure this is set!
                     style=ft.ButtonStyle(
                         bgcolor=ACCENT_TEAL,
                         color="white"
@@ -306,17 +561,18 @@ def signup_ui(page: ft.Page):
                     right_panel
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.START
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=30,
+            padding=0,
             bgcolor="white",
             border_radius=10,
             width=900,
+            height=600,
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=10,
                 color=ft.Colors.with_opacity(0.1, "black"),
                 offset=ft.Offset(0, 4)
-            )
+            ),
         )
-    ) 
+    )
