@@ -235,7 +235,7 @@ def login_ui(page: ft.Page):
     page.window_full_screen = True  
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
-    page.scroll = None  # Disable scrolling
+    page.scroll = None
 
     email_field = ft.Ref[ft.TextField]()
     password_field = ft.Ref[ft.TextField]()
@@ -309,6 +309,12 @@ def login_ui(page: ft.Page):
                 password_error_text.visible = True
             page.update()
             return
+        # --- Verification check for HR and Doctor ---
+        if current_role in ("Doctor", "HR") and not user.get("is_verified", False):
+            email_error_text.value = "Your account has not been verified by the admin yet."
+            email_error_text.visible = True
+            page.update()
+            return
         # Show login status and then open dashboard
         name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
         user_id = user.get('user_id', '')
@@ -333,16 +339,7 @@ def login_ui(page: ft.Page):
         page.clean()
         signup_ui(page)
 
-    def show_admin_login(e):
-        page.clean()
-        admin_panel = create_admin_login_ui(page, lambda _: login_ui(page))
-        page.add(
-            ft.Container(
-                content=admin_panel,
-                alignment=ft.alignment.center,
-                expand=True
-            )
-        )
+
 
     hr_text = ft.Ref[ft.Text]()
     doctor_text = ft.Ref[ft.Text]()
@@ -350,33 +347,17 @@ def login_ui(page: ft.Page):
     doctor_container = ft.Ref[ft.Container]()
 
     left_panel = ft.Container(
-        content=ft.Column(
-            [
-                ft.Text("← Back", color="white", size=14, style=BODY_STYLE),
-                ft.Text(
-                    "Empowering better healthcare through smart,\nsecure records.",
-                    color="white",
-                    style=HEADING_STYLE,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                ft.Column(
-                    [
-                        ft.Text("✔ Secure access to health records", color="white", style=SUBHEADING_STYLE),
-                        ft.Text("✔ Trusted care, anytime you need it", color="white", style=SUBHEADING_STYLE),
-                        ft.Text("✔ Simple tools for smarter healthcare", color="white", style=SUBHEADING_STYLE),
-                    ],
-                    spacing=15,
-                    horizontal_alignment=ft.CrossAxisAlignment.START,
-                )
-            ],
-            alignment=ft.MainAxisAlignment.START,
-            spacing=25,
+        content=ft.Image(
+            src="assets/gifs/left_section_login.gif",
+            width=340,
+            height=500,
+            fit=ft.ImageFit.CONTAIN,
         ),
         width=400,
         height=550,
-        bgcolor=PRIMARY_BLUE,
         padding=30,
-        border_radius=10,
+        border_radius=30,
+        alignment=ft.alignment.center,
     )
 
     login_panel = ft.Container(
@@ -418,6 +399,7 @@ def login_ui(page: ft.Page):
                         color=ACCENT_TEAL
                     )
                 ),
+                ft.Container(height=20),
                 ft.Text(
                     "Log in to your account and we'll get you in to see our doctors",
                     style=BODY_STYLE,
@@ -431,10 +413,15 @@ def login_ui(page: ft.Page):
                     border_color=ACCENT_TEAL,
                     focused_border_color=ACCENT_TEAL,
                     text_style=BODY_STYLE,
-                    label_style=BODY_STYLE
+                    label_style=BODY_STYLE,
+                    hint_text="Enter email or automated ID",
+                    hint_style=ft.TextStyle(
+                        color=ft.Colors.GREY_400,
+                        size=11
+                    )
                 ),
                 ft.Container(email_error_text, alignment=ft.alignment.center_left, padding=ft.padding.only(left=4, top=2, bottom=2)),
-                ft.Container(height=15),
+                ft.Container(height=10),
                 ft.TextField(
                     label="Password",
                     password=True,
@@ -448,14 +435,14 @@ def login_ui(page: ft.Page):
                     on_submit=on_sign_in
                 ),
                 ft.Container(password_error_text, alignment=ft.alignment.center_left, padding=ft.padding.only(left=4, top=2, bottom=2)),
-                ft.Container(height=10),
+                ft.Container(height=5),
                 login_status_text,  # Show login status here
                 ft.Container(
                     content=ft.Text("Forgot password?", style=BODY_STYLE, color=PRIMARY_BLUE),
                     on_click=lambda _: None,
                     padding=ft.padding.only(top=5, bottom=5),
                 ),
-                ft.Container(height=15),
+                ft.Container(height=10),
                 ft.ElevatedButton(
                     content=ft.Text(
                         "Sign In",
@@ -470,18 +457,13 @@ def login_ui(page: ft.Page):
                         color="white"
                     )
                 ),
-                ft.Container(height=20),
-                ft.Text("Don't have an account?", style=BODY_STYLE),
                 ft.Container(height=10),
+                ft.Text("Don't have an account?", style=BODY_STYLE),
+                ft.Container(height=5),
                 ft.Row([
                     ft.Container(
                         content=ft.Text("Sign up", style=BODY_STYLE, color=PRIMARY_BLUE),
                         on_click=go_to_signup,
-                        padding=ft.padding.only(top=5, bottom=5),
-                    ),
-                    ft.Container(
-                        content=ft.Text("Admin Login", style=BODY_STYLE, color=PRIMARY_BLUE),
-                        on_click=show_admin_login,
                         padding=ft.padding.only(top=5, bottom=5),
                     )
                 ], spacing=10),
@@ -493,6 +475,40 @@ def login_ui(page: ft.Page):
         height=600,
     )
 
+    # Function to handle admin shortcut (Ctrl+Alt+A) - only works in login UI
+    def handle_keyboard(e):
+        # Only handle the shortcut if we're in the login UI
+        if not hasattr(page, 'current_ui') or page.current_ui != 'login':
+            return
+            
+        if e.ctrl and e.alt and e.key == 'A':
+            # Remove the keyboard event handler to prevent multiple bindings
+            page.on_keyboard_event = None
+            
+            page.clean()
+            page.bgcolor = ADMIN_PRIMARY  # Set the window background to admin color
+            
+            def return_to_main(_):
+                page.clean()
+                # Reset current UI state
+                page.current_ui = 'login'
+                login_ui(page)
+                
+            admin_panel = create_admin_login_ui(page, return_to_main)
+            page.add(
+                ft.Container(
+                    content=admin_panel,
+                    alignment=ft.alignment.center,
+                    expand=True
+                )
+            )
+            page.update()
+    
+    # Only set the keyboard handler if we're in the login UI
+    if not hasattr(page, 'current_ui') or page.current_ui != 'login':
+        page.current_ui = 'login'
+        page.on_keyboard_event = handle_keyboard
+    
     page.add(
         ft.Container(
             content=ft.Row(

@@ -8,8 +8,11 @@ def main(page: ft.Page):
     # Initial window settings
     page.window_minimizable = False
     page.window_resizable = False
+    page.window_maximized = True
     page.bgcolor = ft.Colors.WHITE
     page.padding = 0
+    # Set app icon
+    page.window_icon = "assets/icons/app_icon.png"
 
     # Theme settings
     page.theme = ft.Theme(
@@ -24,19 +27,8 @@ def main(page: ft.Page):
         "LatoMedium": "https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Bold.ttf"
     }
 
-    # Use a timer to set fullscreen after UI is loaded
-    def set_fullscreen(e):
-        page.window_full_screen = True
-        page.window_maximized = True
-        page.update()
-        page.timer_interval = 0  # Stop the timer
-
-    page.timer_interval = 0.2  # 200ms after load
-    page.on_timer = set_fullscreen
-
     login_ui(page)
 
 if __name__ == "__main__":
     # Use view=ft.FLET_APP for desktop, or view=None for default browser
     ft.app(target=main)
-

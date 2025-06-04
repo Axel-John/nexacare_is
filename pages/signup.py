@@ -64,6 +64,13 @@ def signup_ui(page: ft.Page):
     page.vertical_alignment = "center"
     page.scroll = None  # Disable scrolling
 
+    # Focus the first name field when the page loads
+    def on_page_load(e):
+        first_name.focus()
+        page.update()
+
+    page.on_load = on_page_load
+    
     def on_role_change(e):
         role_dropdown.value = e.data
         page.update()
@@ -117,11 +124,11 @@ def signup_ui(page: ft.Page):
             return False
             
         email = email_field.value.strip()
-        if '@' not in email or '.' not in email or len(email) < 5:
-            print("[DEBUG] Invalid email format")
+        if not email.endswith('@nexacare.med'):
+            print("[DEBUG] Invalid email domain")
             show_dialog(
                 "Sign Up Failed",
-                [ft.Text("Please enter a valid email address", size=16, color=ft.Colors.RED_700)],
+                [ft.Text("Email must end with @nexacare.med", size=16, color=ft.Colors.RED_700)],
                 success=False
             )
             return False
@@ -278,50 +285,66 @@ def signup_ui(page: ft.Page):
             print("[DEBUG] Form validation failed")
             return
 
-        print("[DEBUG] Creating user...")
-        result = create_user(
-            first_name=first_name.value.strip(),
-            last_name=last_name.value.strip(),
-            email=email_field.value.strip().lower(),
-            password=password_field.value,
-            role=role_dropdown.value
-        )
-        print(f"[DEBUG] Create user result: {result}")
-        
-        if isinstance(result, tuple) and len(result) == 3:
-            success, message, user_id = result
-        else:
-            success, message = result
-            user_id = None
-
-        print(f"[DEBUG] Success: {success}, Message: {message}, User ID: {user_id}")
-
-        if success:
-            # Clear all fields before showing success dialog
-            first_name.value = ""
-            last_name.value = ""
-            email_field.value = ""
-            password_field.value = ""
-            confirm_password_field.value = ""
-            maiden_name.value = ""
-            nickname.value = ""
-            fav_media.value = ""
-            birth_city.value = ""
-            role_dropdown.value = None
-            page.update()
-            
-            show_dialog(
-                "Account Created!",
-                [
-                    ft.Text(message, style=BODY_STYLE),
-                    ft.Text(f"Your User ID: {user_id or ''}", style=BODY_STYLE, color=ACCENT_TEAL)
-                ],
-                success=True
+        try:
+            print("[DEBUG] Creating user...")
+            print(f"[DEBUG] User data: first_name={first_name.value}, last_name={last_name.value}, email={email_field.value}, role={role_dropdown.value}")
+            result = create_user(
+                first_name=first_name.value.strip(),
+                last_name=last_name.value.strip(),
+                email=email_field.value.strip().lower(),
+                password=password_field.value,
+                role=role_dropdown.value,
+                maiden_name=maiden_name.value.strip(),
+                nickname=nickname.value.strip(),
+                favorite_media=fav_media.value.strip(),
+                birth_city=birth_city.value.strip()
             )
-        else:
+            print(f"[DEBUG] Create user result: {result}")
+            
+            if isinstance(result, tuple) and len(result) == 3:
+                success, message, user_id = result
+            else:
+                success, message = result
+                user_id = None
+
+            print(f"[DEBUG] Success: {success}, Message: {message}, User ID: {user_id}")
+
+            if success:
+                # Clear all fields before showing success dialog
+                first_name.value = ""
+                last_name.value = ""
+                email_field.value = ""
+                password_field.value = ""
+                confirm_password_field.value = ""
+                maiden_name.value = ""
+                nickname.value = ""
+                fav_media.value = ""
+                birth_city.value = ""
+                role_dropdown.value = None
+                page.update()
+                
+                show_dialog(
+                    "Account Created!",
+                    [
+                        ft.Text(message, style=BODY_STYLE),
+                        ft.Text(f"Your User ID: {user_id or ''}", style=BODY_STYLE, color=ACCENT_TEAL)
+                    ],
+                    success=True
+                )
+            else:
+                error_message = f"Error creating account: {message}"
+                print(f"[DEBUG] {error_message}")
+                show_dialog(
+                    "Sign Up Failed",
+                    [ft.Text(error_message, style=BODY_STYLE, color=ft.Colors.RED_700)],
+                    success=False
+                )
+        except Exception as e:
+            error_message = f"An unexpected error occurred: {str(e)}"
+            print(f"[DEBUG] {error_message}")
             show_dialog(
                 "Sign Up Failed",
-                [ft.Text(message, style=BODY_STYLE, color=ft.Colors.RED_700)],
+                [ft.Text(error_message, style=BODY_STYLE, color=ft.Colors.RED_700)],
                 success=False
             )
 
@@ -336,7 +359,8 @@ def signup_ui(page: ft.Page):
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
-        label_style=BODY_STYLE
+        label_style=BODY_STYLE,
+        autofocus=True,  # Start with first name focused
     )
 
     last_name = ft.TextField(
@@ -345,7 +369,7 @@ def signup_ui(page: ft.Page):
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
-        label_style=BODY_STYLE
+        label_style=BODY_STYLE,
     )
 
     email_field = ft.TextField(
@@ -354,7 +378,12 @@ def signup_ui(page: ft.Page):
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
-        label_style=BODY_STYLE
+        label_style=BODY_STYLE,
+        hint_text="Enter your @nexacare.med email address",
+        hint_style=ft.TextStyle(
+            color=ft.Colors.GREY_400,
+            size=11
+        ),
     )
 
     role_dropdown = ft.Dropdown(
@@ -368,7 +397,7 @@ def signup_ui(page: ft.Page):
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
         label_style=BODY_STYLE,
-        on_change=on_role_change
+        on_change=on_role_change,
     )
 
     password_field = ft.TextField(
@@ -379,7 +408,7 @@ def signup_ui(page: ft.Page):
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
-        label_style=BODY_STYLE
+        label_style=BODY_STYLE,
     )
 
     confirm_password_field = ft.TextField(
@@ -390,7 +419,44 @@ def signup_ui(page: ft.Page):
         border_color=ACCENT_TEAL,
         focused_border_color=ACCENT_TEAL,
         text_style=BODY_STYLE,
-        label_style=BODY_STYLE
+        label_style=BODY_STYLE,
+    )
+
+    # Right Panel - Security Questions
+    maiden_name = ft.TextField(
+        label="Mother's Maiden Name",
+        width=300,
+        border_color=ACCENT_TEAL,
+        focused_border_color=ACCENT_TEAL,
+        text_style=BODY_STYLE,
+        label_style=BODY_STYLE,
+    )
+
+    nickname = ft.TextField(
+        label="Childhood Nickname",
+        width=300,
+        border_color=ACCENT_TEAL,
+        focused_border_color=ACCENT_TEAL,
+        text_style=BODY_STYLE,
+        label_style=BODY_STYLE,
+    )
+
+    fav_media = ft.TextField(
+        label="Favorite Book or Movie",
+        width=300,
+        border_color=ACCENT_TEAL,
+        focused_border_color=ACCENT_TEAL,
+        text_style=BODY_STYLE,
+        label_style=BODY_STYLE,
+    )
+
+    birth_city = ft.TextField(
+        label="City of Birth",
+        width=300,
+        border_color=ACCENT_TEAL,
+        focused_border_color=ACCENT_TEAL,
+        text_style=BODY_STYLE,
+        label_style=BODY_STYLE,
     )
 
     left_panel = ft.Container(
@@ -442,43 +508,6 @@ def signup_ui(page: ft.Page):
         width=400,
     )
     
-
-    # Right Panel - Security Questions
-    maiden_name = ft.TextField(
-        label="Mother's Maiden Name",
-        width=300,
-        border_color=ACCENT_TEAL,
-        focused_border_color=ACCENT_TEAL,
-        text_style=BODY_STYLE,
-        label_style=BODY_STYLE
-    )
-
-    nickname = ft.TextField(
-        label="Childhood Nickname",
-        width=300,
-        border_color=ACCENT_TEAL,
-        focused_border_color=ACCENT_TEAL,
-        text_style=BODY_STYLE,
-        label_style=BODY_STYLE
-    )
-
-    fav_media = ft.TextField(
-        label="Favorite Book or Movie",
-        width=300,
-        border_color=ACCENT_TEAL,
-        focused_border_color=ACCENT_TEAL,
-        text_style=BODY_STYLE,
-        label_style=BODY_STYLE
-    )
-
-    birth_city = ft.TextField(
-        label="City of Birth",
-        width=300,
-        border_color=ACCENT_TEAL,
-        focused_border_color=ACCENT_TEAL,
-        text_style=BODY_STYLE,
-        label_style=BODY_STYLE
-    )
 
     right_panel = ft.Container(
         content=ft.Column(
