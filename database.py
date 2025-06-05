@@ -15,53 +15,44 @@ def get_connection():
         return None
 
 def init_db():
-    # First create the database if it doesn't exist
-    try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password=""
-        )
-        cursor = conn.cursor()
-        cursor.execute("CREATE DATABASE IF NOT EXISTS nexacare_db")
-        conn.close()
-    except Error as e:
-        print(f"Error creating database: {e}")
-        return
-
-    # Now connect to the database and create tables
+    # Create the database and tables with correct schema
     try:
         conn = get_connection()
         if conn is None:
+            print("Database connection failed")
             return
-            
         cursor = conn.cursor()
-        
-        # Create doctors table first
-        cursor.execute(r"""
+
+        # Create doctors table (minimal example, expand as needed)
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS doctors (
             user_id VARCHAR(16) PRIMARY KEY,
-            first_name VARCHAR(50) NOT NULL,
-            last_name VARCHAR(50) NOT NULL,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """)
+
+        # Create hrs table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS hrs (
+            user_id VARCHAR(16) PRIMARY KEY,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
             email VARCHAR(100) NOT NULL UNIQUE,
             password VARCHAR(255) NOT NULL,
             is_verified BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT chk_doc_names CHECK (
-                LENGTH(first_name) >= 2 AND
-                LENGTH(last_name) >= 2
-            ),
-            CONSTRAINT chk_doc_email CHECK (
-                email REGEXP '^[A-Za-z0-9._%+-]+@nexacare\.med$'
-            ),
-            CONSTRAINT chk_doc_password CHECK (LENGTH(password) >= 8)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            CONSTRAINT chk_hr_names CHECK (LENGTH(first_name) >= 2 AND LENGTH(last_name) >= 2),
+            CONSTRAINT chk_hr_email CHECK (email LIKE '%@nexacare.med'),
+            CONSTRAINT chk_hr_password CHECK (LENGTH(password) >= 8)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """)
-        
-        # Create patients table with doctor_id foreign key
+
+        # Create patients table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS patients (
-            id VARCHAR(8) PRIMARY KEY,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            patient_code VARCHAR(20) UNIQUE,
             full_name VARCHAR(100) NOT NULL,
             birthdate DATE NOT NULL,
             gender ENUM('Male', 'Female', 'Other', 'Prefer not to say') NOT NULL,
@@ -70,7 +61,6 @@ def init_db():
             address TEXT NOT NULL,
             emergency_contact_name VARCHAR(100) NOT NULL,
             emergency_contact_phone VARCHAR(20) NOT NULL,
-            patient_id VARCHAR(20),
             visit_type ENUM('New Patient', 'Follow-up', 'Walk-in') NOT NULL DEFAULT 'New Patient',
             assigned_doctor VARCHAR(16),
             visit_date DATETIME,
@@ -81,58 +71,15 @@ def init_db():
             current_medications JSON,
             remarks TEXT,
             status ENUM('Pending', 'Scheduled', 'Completed', 'Cancelled', 'No Show') NOT NULL DEFAULT 'Pending',
+            photo_path VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT chk_patient_name CHECK (LENGTH(full_name) >= 2),
             CONSTRAINT chk_patient_phone CHECK (LENGTH(phone) >= 7),
-            CONSTRAINT fk_patient_doctor
-                FOREIGN KEY (assigned_doctor) 
-                REFERENCES doctors(user_id) ON DELETE SET NULL
-                ON UPDATE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            CONSTRAINT fk_patient_doctor FOREIGN KEY (assigned_doctor) REFERENCES doctors(user_id) ON DELETE SET NULL ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """)
 
-        # Create hrs table
-        cursor.execute(r"""
-        CREATE TABLE IF NOT EXISTS hrs (
-            user_id VARCHAR(16) PRIMARY KEY,
-            first_name VARCHAR(50) NOT NULL,
-            last_name VARCHAR(50) NOT NULL,
-            email VARCHAR(100) NOT NULL UNIQUE,
-            password VARCHAR(255) NOT NULL,
-            is_verified BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT chk_hr_names CHECK (
-                LENGTH(first_name) >= 2 AND
-                LENGTH(last_name) >= 2
-            ),
-            CONSTRAINT chk_hr_email CHECK (
-                email REGEXP '^[A-Za-z0-9._%+-]+@nexacare\.med$'
-            ),
-            CONSTRAINT chk_hr_password CHECK (LENGTH(password) >= 8)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # Create admins table
-        cursor.execute(r"""
-        CREATE TABLE IF NOT EXISTS admins (
-            user_id VARCHAR(16) PRIMARY KEY,
-            first_name VARCHAR(50) NOT NULL,
-            last_name VARCHAR(50) NOT NULL,
-            email VARCHAR(100) NOT NULL UNIQUE,
-            password VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT chk_admin_names CHECK (
-                LENGTH(first_name) >= 2 AND
-                LENGTH(last_name) >= 2
-            ),
-            CONSTRAINT chk_admin_email CHECK (
-                email REGEXP '^[A-Za-z0-9._%+-]+@nexacare\.med$'
-            ),
-            CONSTRAINT chk_admin_password CHECK (LENGTH(password) >= 8)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # Create appointments table with foreign key constraints
+        # Create appointments table with ON DELETE CASCADE
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS appointments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -143,28 +90,35 @@ def init_db():
             status VARCHAR(20) NOT NULL DEFAULT 'Scheduled',
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-            FOREIGN KEY (doctor_id) REFERENCES doctors(user_id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            FOREIGN KEY (doctor_id) REFERENCES doctors(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """)
-        
+
+        # Create admins table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            user_id VARCHAR(16) PRIMARY KEY,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT chk_admin_names CHECK (LENGTH(first_name) >= 2 AND LENGTH(last_name) >= 2),
+            CONSTRAINT chk_admin_email CHECK (email LIKE '%@nexacare.med'),
+            CONSTRAINT chk_admin_password CHECK (LENGTH(password) >= 8)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """)
+
         conn.commit()
+        print("Database and tables created successfully.")
 
-        # Create initial admin account if it doesn't exist
-        success, message = create_initial_admin()
-        if success:
-            print("Initial admin account created successfully")
-        else:
-            print(f"Note: {message}")
-
-        # Create initial HR account if it doesn't exist
-        success, message = create_initial_hr()
-        if success:
-            print("Initial HR account created successfully")
-        else:
-            print(f"Note: {message}")
-
-    except Error as e:
+        # Create initial admin and HR accounts
+        admin_success, admin_msg = create_initial_admin()
+        print(f"Initial admin: {admin_msg}")
+        hr_success, hr_msg = create_initial_hr()
+        print(f"Initial HR: {hr_msg}")
+    except Exception as e:
         print(f"Error initializing database: {e}")
     finally:
         if conn and conn.is_connected():
@@ -447,12 +401,22 @@ def add_patient(full_name: str, birthdate: str, gender: str, civil_status: str, 
             return False, "Invalid visit type", None
 
         try:
-            # Generate patient ID if not provided
+            # Generate patient_code if not provided
             if not patient_id:
-                cursor.execute("SELECT COUNT(*) FROM patients")
-                count = cursor.fetchone()[0]
-                patient_id = f"NXCP{str(count + 1).zfill(4)}"
+                cursor.execute("SELECT MAX(CAST(SUBSTRING(patient_code, 5) AS UNSIGNED)) FROM patients")
+                max_num = cursor.fetchone()[0]
+                next_num = (max_num or 0) + 1
+                patient_id = f"NXCP{str(next_num).zfill(4)}"
             
+            # Ensure all medical info fields are lists
+            def ensure_list(val):
+                if isinstance(val, str):
+                    return [x.strip() for x in val.replace("\n", ",").split(",") if x.strip()]
+                return val if isinstance(val, list) else []
+            allergies = ensure_list(allergies)
+            chronic_illnesses = ensure_list(chronic_illnesses)
+            current_medications = ensure_list(current_medications)
+
             # Convert list fields to JSON strings
             import json
             allergies_json = json.dumps(allergies) if allergies else json.dumps([])
@@ -465,15 +429,15 @@ def add_patient(full_name: str, birthdate: str, gender: str, civil_status: str, 
             # Insert new patient
             cursor.execute("""
             INSERT INTO patients (
-                id, full_name, birthdate, gender, civil_status, phone, address,
-                emergency_contact_name, emergency_contact_phone, patient_id,
+                patient_code, full_name, birthdate, gender, civil_status, phone, address,
+                emergency_contact_name, emergency_contact_phone,
                 visit_type, assigned_doctor, visit_date, insurance_provider, referral_source,
                 allergies, chronic_illnesses, current_medications, remarks,
                 status, photo_path, created_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             """, (
                 patient_id, full_name, birthdate, gender, civil_status, phone, address,
-                emergency_contact_name, emergency_contact_phone, patient_id,
+                emergency_contact_name, emergency_contact_phone,
                 visit_type, doctor_id, visit_date, insurance_provider, referral_source,
                 allergies_json, chronic_illnesses_json, current_medications_json, remarks,
                 status, photo_path
@@ -878,7 +842,7 @@ def get_all_appointments():
         cursor.execute("""
         SELECT a.id, a.patient_id, a.doctor_id, a.appointment_date, a.consultation_type, 
                a.status, a.notes, a.created_at,
-               CONCAT(p.first_name, ' ', p.last_name) AS patient_name,
+               p.full_name AS patient_name,
                CONCAT(d.first_name, ' ', d.last_name) AS doctor_name
         FROM appointments a
         JOIN patients p ON a.patient_id = p.id
@@ -958,3 +922,30 @@ def delete_appointment(appointment_id: int):
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+
+def clear_numeric_medical_info_fields():
+    import json
+    conn = get_connection()
+    if conn is None:
+        print("Database connection failed")
+        return
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, allergies, chronic_illnesses, current_medications FROM patients")
+    for row in cursor.fetchall():
+        updates = {}
+        for field in ["allergies", "chronic_illnesses", "current_medications"]:
+            try:
+                items = json.loads(row[field]) if row[field] else []
+                if any(isinstance(x, int) for x in items):
+                    updates[field] = json.dumps([])
+            except Exception:
+                updates[field] = json.dumps([])
+        if updates:
+            set_clause = ", ".join([f"{k} = %s" for k in updates.keys()])
+            values = list(updates.values()) + [row["id"]]
+            cursor.execute(f"UPDATE patients SET {set_clause} WHERE id = %s", values)
+            print(f"Cleared fields for patient {row['id']}")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Done. All numeric medical info fields have been cleared.")

@@ -1,6 +1,10 @@
 import flet as ft
+from typing import TYPE_CHECKING, Callable
 
-def navigate_to_login(page: ft.Page):
+if TYPE_CHECKING:
+    import flet as ft
+
+def navigate_to_login(page: 'ft.Page'):
     """
     Clean the current page and navigate to login.
     This function will be imported by the dashboard modules.
@@ -9,7 +13,7 @@ def navigate_to_login(page: ft.Page):
     page.clean()
     login_ui(page)
 
-def create_sidebar(page: ft.Page, user_type: str, handle_logout, current_selection=None, menu_selection_handler=None):
+def create_sidebar(page: 'ft.Page', user_type: str, handle_logout, current_selection=None, menu_selection_handler: Callable = None):
     """
     Creates a sidebar with toggle functionality for both doctor and HR dashboards.
     Args:
@@ -114,7 +118,7 @@ def create_sidebar(page: ft.Page, user_type: str, handle_logout, current_selecti
                 data=title,
             )
 
-    def select_menu_item(title: str, e):
+    def select_menu_item(title: str, e: 'ft.ControlEvent'):
         """Selection handler for HR and admin dashboards"""
         if title != "Logout":
             # Update current selection

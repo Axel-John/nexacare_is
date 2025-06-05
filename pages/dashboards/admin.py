@@ -26,7 +26,7 @@ def create_dashboard_doctor_card(doctor: dict, page: ft.Page, dialog_modal: ft.C
             dialog_modal.visible = False
             if confirmed:
                 # Switch to doctors tab and show doctor's details
-                handle_menu_selection("Doctors", None, lambda t, e: handle_menu_selection(t, e, main_content))
+                handle_menu_selection("Doctors", None, lambda t, e, *args: handle_menu_selection(t, e, main_content))
                 # Show doctor's details
                 handle_view_details(doctor, page, dialog_modal)
             page.update()
@@ -162,7 +162,7 @@ def create_dashboard_hr_card(hr: dict, page: ft.Page, dialog_modal: ft.Container
             dialog_modal.visible = False
             if confirmed:
                 # Switch to HR tab and show HR's details
-                handle_menu_selection("HR", None, lambda t, e: handle_menu_selection(t, e, main_content))
+                handle_menu_selection("HR", None, lambda t, e, *args: handle_menu_selection(t, e, main_content))
                 # Show HR's details
                 handle_view_hr_details(hr, page, dialog_modal)
             page.update()
@@ -518,7 +518,11 @@ def handle_verify_doctor(doctor: dict, page: ft.Page, dialog_modal: ft.Container
         dialog_modal.visible = False
         if confirmed:
             # Update verification status in database
-            success, message = verify_doctor(doctor['user_id'])
+            result = verify_doctor(doctor['user_id'])
+            if isinstance(result, tuple):
+                success, message = result
+            else:
+                success, message = result, "Unknown error"
             if not success:
                 # Show error dialog
                 error_dialog = ft.Container(
@@ -950,6 +954,18 @@ def handle_edit_doctor(doctor: dict, page: ft.Page, dialog_modal: ft.Container, 
         label_style=ft.TextStyle(color=ADMIN_GRAY_MEDIUM),
         bgcolor=ADMIN_BLACK,
     )
+    confirm_password_field = ft.TextField(
+        label="Confirm Password",
+        password=True,
+        can_reveal_password=True,
+        width=280,
+        height=40,
+        border_color=ADMIN_GRAY_MEDIUM,
+        focused_border_color=ADMIN_WHITE,
+        text_style=ft.TextStyle(color=ADMIN_WHITE),
+        label_style=ft.TextStyle(color=ADMIN_GRAY_MEDIUM),
+        bgcolor=ADMIN_BLACK,
+    )
     
     # Error text for validation messages
     error_text = ft.Text(
@@ -1181,6 +1197,14 @@ def handle_edit_doctor(doctor: dict, page: ft.Page, dialog_modal: ft.Container, 
                                                         ft.Icon(ft.Icons.KEY_OUTLINED, color=ADMIN_GRAY_MEDIUM),
                                                         ft.Container(width=10),
                                                         password_field,
+                                                    ]
+                                                ),
+                                                ft.Row(
+                                                    alignment=ft.MainAxisAlignment.CENTER,
+                                                    controls=[
+                                                        ft.Icon(ft.Icons.KEY_OUTLINED, color=ADMIN_GRAY_MEDIUM),
+                                                        ft.Container(width=10),
+                                                        confirm_password_field,
                                                     ]
                                                 ),
                                             ]
@@ -2388,6 +2412,18 @@ def handle_edit_hr(hr: dict, page: ft.Page, dialog_modal: ft.Container, hrs_grid
         label_style=ft.TextStyle(color=ADMIN_GRAY_MEDIUM),
         bgcolor=ADMIN_BLACK,
     )
+    confirm_password_field = ft.TextField(
+        label="Confirm Password",
+        password=True,
+        can_reveal_password=True,
+        width=280,
+        height=40,
+        border_color=ADMIN_GRAY_MEDIUM,
+        focused_border_color=ADMIN_WHITE,
+        text_style=ft.TextStyle(color=ADMIN_WHITE),
+        label_style=ft.TextStyle(color=ADMIN_GRAY_MEDIUM),
+        bgcolor=ADMIN_BLACK,
+    )
     
     # Error text for validation messages
     error_text = ft.Text(
@@ -2482,6 +2518,8 @@ def handle_edit_hr(hr: dict, page: ft.Page, dialog_modal: ft.Container, hrs_grid
                     page.update()
                 else:
                     # Show error dialog
+                    if 'message' not in locals():
+                        message = "Unknown error"
                     error_dialog = ft.Container(
                         width=400,
                         height=250,
@@ -2694,6 +2732,14 @@ def handle_edit_hr(hr: dict, page: ft.Page, dialog_modal: ft.Container, hrs_grid
                                     ft.Icon(ft.Icons.KEY_OUTLINED, color=ADMIN_GRAY_MEDIUM),
                                     ft.Container(width=10),
                                     password_field,
+                                ]
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                controls=[
+                                    ft.Icon(ft.Icons.KEY_OUTLINED, color=ADMIN_GRAY_MEDIUM),
+                                    ft.Container(width=10),
+                                    confirm_password_field,
                                 ]
                             ),
                             error_text,
@@ -3623,9 +3669,9 @@ def dashboard_ui(page: ft.Page, user: dict):
         elif title == "HRs":
             main_content.content = create_hr_tab(page, user, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, success_text)
         elif title == "Dashboard":
-            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e: handle_menu_selection(t, e, main_content))
+            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e, *args: handle_menu_selection(t, e, main_content))
         else:
-            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e: handle_menu_selection(t, e, main_content))
+            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e, *args: handle_menu_selection(t, e, main_content))
         page.update()
 
     # Create main content container first
@@ -3634,7 +3680,7 @@ def dashboard_ui(page: ft.Page, user: dict):
     )
 
     # Create sidebar using the centralized function with current_selection and menu handler
-    sidebar = create_sidebar(page, "admin", handle_logout, current_selection, lambda t, e: handle_menu_selection(t, e, main_content))
+    sidebar = create_sidebar(page, "admin", handle_logout, current_selection, lambda t, e, *args: handle_menu_selection(t, e, main_content))
 
     # Update handle_menu_selection to properly pass main_content
     def handle_menu_selection(title: str, e, main_content: ft.Container):
@@ -3644,9 +3690,9 @@ def dashboard_ui(page: ft.Page, user: dict):
         elif title == "HRs":
             main_content.content = create_hr_tab(page, user, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, success_text)
         elif title == "Dashboard":
-            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e: handle_menu_selection(t, e, main_content), main_content)
+            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e, *args: handle_menu_selection(t, e, main_content), main_content)
         else:
-            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e: handle_menu_selection(t, e, main_content), main_content)
+            main_content.content = create_dashboard_content(page, user, add_doctor_modal, doctors_grid, show_add_doctor_form, add_hr_modal, hrs_grid, show_add_hr_form, dialog_modal, lambda t, e, *args: handle_menu_selection(t, e, main_content), main_content)
         page.update()
 
     # Create the dashboard content and add it to main_content
