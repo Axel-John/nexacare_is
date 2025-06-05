@@ -2660,7 +2660,7 @@ def handle_edit_hr(hr: dict, page: ft.Page, dialog_modal: ft.Container, hrs_grid
     # Create dialog content with improved layout
     dialog_content = ft.Container(
         width=470,
-        height=450,
+        height=500,
         bgcolor=ADMIN_GRAY_DARK,
         border_radius=10,
         padding=20,

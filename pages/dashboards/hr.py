@@ -23,6 +23,229 @@ HR_ERROR = "#EF5350"  # Red for error states
 HR_INFO = "#2196F3"  # Blue for info states
 HR_GRAY = "#9E9E9E"  # Gray for neutral states
 
+status_colors = {
+    "Scheduled": "#0000FF1A",  # Blue with 10% opacity
+    "Pending": "#FFA5001A",    # Orange with 10% opacity
+    "Completed": "#0080001A",  # Green with 10% opacity
+    "Cancelled": "#FF00001A",  # Red with 10% opacity
+    "No Show": "#8080801A",    # Grey with 10% opacity
+}
+
+def filter_words_only(items):
+    if not items:
+        return []
+    if isinstance(items, str):
+        items = [x.strip() for x in items.split(',') if x.strip()]
+    return [str(x) for x in items if isinstance(x, (str, int)) and (isinstance(x, str) and not x.isdigit() or isinstance(x, int))]
+
+def calculate_age_from_birthdate(birthdate_str):
+    try:
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+            try:
+                birthdate = datetime.strptime(birthdate_str, fmt)
+                break
+            except Exception:
+                continue
+        else:
+            return None
+        today = datetime.today()
+        return today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
+    except Exception:
+        return None
+
+def create_patient_card(patient, show_patient_details, handle_edit_patient, handle_delete_patient):
+    status_color = status_colors.get(patient.get('status', 'Pending'), HR_GRAY)
+    doctor_info = patient.get('doctor_name', 'Awaiting Doctor Assignment')
+    if patient.get('doctor_id') or patient.get('doctor_name'):
+        consultation_info = 'Accepted by doctor'
+    else:
+        consultation_info = 'To be determined by doctor'
+    avatar_content = (
+        ft.Container(
+            content=ft.Image(
+                src=patient.get('photo_path'),
+                width=60,
+                height=60,
+                fit=ft.ImageFit.COVER,
+            ),
+            border_radius=30,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            border=ft.border.all(2, HR_PRIMARY),
+        ) if patient.get('photo_path') else ft.Text(patient.get('full_name', 'P')[0].upper(), size=24)
+    )
+    chronic_illnesses = ', '.join(filter_words_only(patient.get('chronic_illnesses', ''))) or "None"
+    allergies = ', '.join(filter_words_only(patient.get('allergies', ''))) or "None"
+    current_medications = ', '.join(filter_words_only(patient.get('current_medications', ''))) or "None"
+    birthdate_str = patient.get('birthdate')
+    age = None
+    if birthdate_str:
+        age = calculate_age_from_birthdate(birthdate_str)
+    if age is None or not isinstance(age, int):
+        # Only use the 'age' field if birthdate is missing or invalid
+        age = patient.get('age')
+        if isinstance(age, str) and age.isdigit():
+            age = int(age)
+        elif not isinstance(age, int):
+            age = None
+    age_display = f"{age} years" if isinstance(age, int) and age > 0 else "N/A"
+    return ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.CircleAvatar(
+                            content=avatar_content,
+                            radius=25,
+                            bgcolor=HR_PRIMARY,
+                            color=HR_WHITE,
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                patient.get('status', 'Pending'),
+                                color=HR_WHITE,
+                                size=10,
+                                weight=ft.FontWeight.W_500,
+                            ),
+                            bgcolor=status_color,
+                            padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                            border_radius=12,
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                ft.Text(
+                    f"{patient.get('full_name', 'Unknown Patient')}", 
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=HR_TEXT,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    width=250,
+                ),
+                ft.Text(
+                    f"ID: {str(patient.get('id', 'N/A')).zfill(4)}", 
+                    size=12,
+                    color=HR_TEXT,
+                ),
+                ft.Text(f"Age: {age_display}", size=12, color=HR_TEXT),
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.PHONE, size=14, color=HR_TEXT),
+                                    ft.Text(patient.get("phone", "No phone"), size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.PERSON, size=14, color=HR_TEXT),
+                                    ft.Text(f"{age_display}, {patient.get('gender', 'Not specified')}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.MEDICAL_SERVICES, size=14, color=HR_TEXT),
+                                    ft.Text(doctor_info, size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.CALENDAR_TODAY, size=14, color=HR_TEXT),
+                                    ft.Text(consultation_info, size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.WARNING, size=14, color=HR_TEXT),
+                                    ft.Text(f"Allergies: {allergies}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.MEDICAL_SERVICES, size=14, color=HR_TEXT),
+                                    ft.Text(f"Chronic Illnesses: {chronic_illnesses}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.MEDICATION, size=14, color=HR_TEXT),
+                                    ft.Text(f"Medications: {current_medications}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
+                                ],
+                                spacing=6,
+                            ),
+                        ],
+                        spacing=6,
+                    ),
+                    padding=ft.padding.only(top=8),
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.ElevatedButton(
+                                "View Details",
+                                icon=ft.Icons.VISIBILITY_OUTLINED,
+                                style=ft.ButtonStyle(
+                                    bgcolor=HR_WHITE,
+                                    color=HR_PRIMARY,
+                                    side=ft.border.all(1, HR_PRIMARY),
+                                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                    shape=ft.RoundedRectangleBorder(radius=6),
+                                ),
+                                on_click=lambda e, p=patient: show_patient_details(p),
+                                height=36,
+                            ),
+                            ft.Container(expand=True),
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT_OUTLINED,
+                                icon_size=18,
+                                icon_color=HR_INFO,
+                                tooltip="Edit",
+                                on_click=lambda e, p=patient: handle_edit_patient(p),
+                                style=ft.ButtonStyle(
+                                    side=ft.border.all(1, HR_BORDER),
+                                    shape=ft.RoundedRectangleBorder(radius=6),
+                                ),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_size=18,
+                                icon_color=HR_ERROR,
+                                tooltip="Delete",
+                                on_click=lambda e, p=patient: handle_delete_patient(p.get('id')),
+                                style=ft.ButtonStyle(
+                                    side=ft.border.all(1, HR_BORDER),
+                                    shape=ft.RoundedRectangleBorder(radius=6),
+                                ),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=6,
+                    ),
+                    padding=ft.padding.only(top=8),
+                ),
+            ],
+            spacing=10,
+        ),
+        padding=15,
+        bgcolor=HR_WHITE,
+        border_radius=8,
+        width=280,
+        border=ft.border.all(1, HR_BORDER),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=5,
+            color=ft.Colors.with_opacity(0.1, HR_TEXT),
+            offset=ft.Offset(0, 2),
+        ),
+    )
+
 def show_date_picker_dialog(page, text_field_to_update, patient_form_state, state_key, dialog_title, get_current_step_content, min_date=None, max_date=None, on_date_selected=None):
     # Create a container to hold the date picker
     container = ft.Container(
@@ -367,7 +590,7 @@ def create_patients_tab(page, user):
         filtered_patients = [
             p for p in all_patients
             if (search_term in p['full_name'].lower() or 
-                search_term in p['last_name'].lower() or 
+                search_term in p.get('last_name', '').lower() or 
                 search_term in str(p['id']).lower() or
                 search_term in p.get('phone', '').lower())
         ]
@@ -519,8 +742,12 @@ def create_patients_tab(page, user):
     def show_patient_details(patient):
         # Get doctor and consultation info
         doctor_info = patient.get('doctor_name', 'Awaiting Doctor Assignment')
-        consultation_info = f"{patient.get('visit_type', 'N/A')} - {patient.get('visit_date', 'No date set')}"
-
+        # Show consultation status based on doctor assignment
+        if patient.get('doctor_id') or patient.get('doctor_name'):
+            consultation_info = 'Accepted by doctor'
+        else:
+            consultation_info = 'To be determined by doctor'
+        # Only show birthdate in details
         # Create a two-column layout for better organization
         left_column = ft.Column([
             # Basic Information Section
@@ -754,155 +981,492 @@ def create_patients_tab(page, user):
         page.update()
 
     def handle_edit_patient(patient):
-        # Create edit form fields with current values
+        # Local state for edit form
         edit_form_state = {
             "full_name": patient.get("full_name", ""),
+            "birthdate": patient.get("birthdate", ""),
+            "gender": patient.get("gender", "Male"),
+            "civil_status": patient.get("civil_status", "Single"),
             "phone": patient.get("phone", ""),
-            "age": str(patient.get("age", "")),
-            "gender": patient.get("gender", ""),
             "address": patient.get("address", ""),
-            "status": patient.get("status", "Pending"),
-            "doctor_id": patient.get("doctor_id", ""),
-            "consultation_type": patient.get("consultation_type", ""),
-            "allergies": patient.get("allergies", []),
-            "chronic_illnesses": patient.get("chronic_illnesses", []),
-            "current_medications": patient.get("current_medications", []),
+            "emergency_contact_name": patient.get("emergency_contact_name", ""),
+            "emergency_contact_phone": patient.get("emergency_contact_phone", ""),
+            "allergies": patient.get("allergies", ""),
+            "chronic_illnesses": patient.get("chronic_illnesses", ""),
+            "current_medications": patient.get("current_medications", ""),
+            "remarks": patient.get("remarks", ""),
+            "status": patient.get("status", "Scheduled"),
+            "assigned_doctor": patient.get("doctor_id", ""),
+            "visit_type": patient.get("visit_type", "New Patient"),
+            "insurance_provider": patient.get("insurance_provider", ""),
+            "referral_source": patient.get("referral_source", ""),
+            "visit_date": patient.get("visit_date", datetime.now().strftime("%Y-%m-%d")),
         }
-
-        # Create edit form fields
-        edit_first_name = ft.TextField(
-            label="Full Name",
-            value=edit_form_state["full_name"],
-            width=250,
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"full_name": e.control.value})
-        )
-        edit_last_name = ft.TextField(
-            label="Last Name",
-            value=edit_form_state["last_name"],
-            width=250,
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"last_name": e.control.value})
-        )
-        edit_phone = ft.TextField(
-            label="Phone Number",
-            value=edit_form_state["phone"],
-            width=520,
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"phone": e.control.value})
-        )
-        edit_age = ft.TextField(
-            label="Age",
-            value=edit_form_state["age"],
-            width=100,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"age": e.control.value})
-        )
-        edit_gender = ft.Dropdown(
-            label="Gender",
-            value=edit_form_state["gender"],
-            width=120,
-            options=[
-                ft.dropdown.Option("Male"),
-                ft.dropdown.Option("Female"),
-                ft.dropdown.Option("Other")
-            ],
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"gender": e.control.value})
-        )
-        edit_status = ft.Dropdown(
-            label="Status",
-            value=edit_form_state["status"],
-            width=120,
-            options=[
-                ft.dropdown.Option("Scheduled"),
-                ft.dropdown.Option("Pending"),
-                ft.dropdown.Option("Completed"),
-                ft.dropdown.Option("Cancelled"),
-                ft.dropdown.Option("No Show"),
-            ],
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"status": e.control.value})
-        )
-        edit_doctor = ft.Dropdown(
-            label="Doctor",
-            value=edit_form_state["doctor_id"],
-            width=250,
-            options=[ft.dropdown.Option(d["id"], d["name"]) for d in doctors],
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"doctor_id": e.control.value})
-        )
-        edit_consultation = ft.Dropdown(
-            label="Consultation Type",
-            value=edit_form_state["consultation_type"],
-            width=250,
-            options=[
-                ft.dropdown.Option("General Checkup"),
-                ft.dropdown.Option("Follow-up"),
-                ft.dropdown.Option("Emergency"),
-                ft.dropdown.Option("Specialist Consultation"),
-                ft.dropdown.Option("Lab Test"),
-                ft.dropdown.Option("Vaccination"),
-                ft.dropdown.Option("Other"),
-            ],
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"consultation_type": e.control.value})
-        )
-        edit_address = ft.TextField(
-            label="Address",
-            value=edit_form_state["address"],
-            width=520,
-            border_color=HR_BORDER,
-            focused_border_color=HR_PRIMARY,
-            text_style=ft.TextStyle(color=HR_TEXT),
-            label_style=ft.TextStyle(color=HR_TEXT),
-            on_change=lambda e: edit_form_state.update({"address": e.control.value})
-        )
-
-        def handle_edit_submit(e):
+        edit_current_step = ft.Ref[int]()
+        edit_current_step.current = 0
+        
+        def edit_create_stepper():
+            def handle_step_click(step):
+                if step <= edit_current_step.current + 1:
+                    edit_current_step.current = step
+                    edit_modal_content.current.content.controls[2].content = get_edit_current_step_content()
+                    page.update()
+            # Color logic (same as add)
+            if edit_current_step.current > 0:
+                icon_color_0 = HR_SUCCESS
+                text_color_0 = HR_SUCCESS
+            elif edit_current_step.current == 0:
+                icon_color_0 = HR_PRIMARY
+                text_color_0 = HR_PRIMARY
+            else:
+                icon_color_0 = HR_GRAY
+                text_color_0 = HR_GRAY
+            if edit_current_step.current > 1:
+                icon_color_1 = HR_SUCCESS
+                text_color_1 = HR_SUCCESS
+            elif edit_current_step.current == 1:
+                icon_color_1 = HR_PRIMARY
+                text_color_1 = HR_PRIMARY
+            else:
+                icon_color_1 = HR_GRAY
+                text_color_1 = HR_GRAY
+            if edit_current_step.current == 2:
+                icon_color_2 = HR_PRIMARY
+                text_color_2 = HR_PRIMARY
+            elif edit_current_step.current > 2:
+                icon_color_2 = HR_SUCCESS
+                text_color_2 = HR_SUCCESS
+            else:
+                icon_color_2 = HR_GRAY
+                text_color_2 = HR_GRAY
+            return ft.Container(
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Column([
+                            ft.IconButton(
+                                icon=ft.Icons.PERSON_OUTLINE,
+                                icon_color=icon_color_0,
+                                icon_size=24,
+                                on_click=lambda e: handle_step_click(0)
+                            ),
+                            ft.TextButton(
+                                text="Basic Details",
+                                style=ft.ButtonStyle(color=text_color_0),
+                                on_click=lambda e: handle_step_click(0)
+                            ),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+                        width=100,
+                    ),
+                    ft.Container(
+                        content=ft.Container(
+                            bgcolor=icon_color_1,
+                            height=2,
+                            width=50,
+                        ),
+                        alignment=ft.alignment.center,
+                    ),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.IconButton(
+                                icon=ft.Icons.DESCRIPTION_OUTLINED,
+                                icon_color=icon_color_1,
+                                icon_size=24,
+                                on_click=lambda e: handle_step_click(1)
+                            ),
+                            ft.TextButton(
+                                text="Visit Info",
+                                style=ft.ButtonStyle(color=text_color_1),
+                                on_click=lambda e: handle_step_click(1)
+                            ),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+                        width=100,
+                    ),
+                    ft.Container(
+                        content=ft.Container(
+                            bgcolor=icon_color_2,
+                            height=2,
+                            width=50,
+                        ),
+                        alignment=ft.alignment.center,
+                    ),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.IconButton(
+                                icon=ft.Icons.INFO_OUTLINE,
+                                icon_color=icon_color_2,
+                                icon_size=24,
+                                on_click=lambda e: handle_step_click(2)
+                            ),
+                            ft.TextButton(
+                                text="Pre-Medical",
+                                style=ft.ButtonStyle(color=text_color_2),
+                                on_click=lambda e: handle_step_click(2)
+                            ),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+                        width=100,
+                    ),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                padding=ft.padding.only(bottom=20),
+            )
+        def get_edit_current_step_content():
+            # Step 1: Basic Details
+            if edit_current_step.current == 0:
+                def _create_birthdate_row_for_step_content():
+                    gcs_birthdate_tf = ft.TextField(
+                        label="Birthdate",
+                        value=edit_form_state.get("birthdate", ""),
+                        width=470,
+                        border_color=HR_BORDER,
+                        focused_border_color=HR_PRIMARY,
+                        text_style=ft.TextStyle(color=HR_TEXT),
+                        label_style=ft.TextStyle(color=HR_TEXT),
+                        read_only=True
+                    )
+                    gcs_birthdate_icon = ft.IconButton(
+                        ft.Icons.CALENDAR_MONTH,
+                        tooltip="Select Birthdate",
+                        on_click=lambda e, tf_control=gcs_birthdate_tf: show_date_picker_dialog(
+                            page,
+                            tf_control,
+                            edit_form_state,
+                            "birthdate",
+                            "Select Birthdate",
+                            get_edit_current_step_content,
+                            min_date=datetime.now() - timedelta(days=365*100),
+                            max_date=datetime.now()
+                        )
+                    )
+                    return ft.Row(
+                        [gcs_birthdate_tf, gcs_birthdate_icon],
+                        alignment=ft.MainAxisAlignment.START,
+                        spacing=5
+                    )
+                return ft.Column([
+                    ft.Row([
+                        ft.TextField(
+                            label="Full Name",
+                            value=edit_form_state["full_name"],
+                            width=520,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            text_style=ft.TextStyle(color=HR_TEXT),
+                            label_style=ft.TextStyle(color=HR_TEXT),
+                            on_change=lambda e: edit_form_state.update({"full_name": e.control.value})
+                        ),
+                    ]),
+                    _create_birthdate_row_for_step_content(),
+                    ft.Row([
+                        ft.Dropdown(
+                            label="Gender",
+                            value=edit_form_state["gender"],
+                            options=[
+                                ft.dropdown.Option("Male"),
+                                ft.dropdown.Option("Female"),
+                                ft.dropdown.Option("Other"),
+                                ft.dropdown.Option("Prefer not to say")
+                            ],
+                            width=250,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            on_change=lambda e: edit_form_state.update({"gender": e.control.value})
+                        ),
+                        ft.Container(width=10),
+                        ft.Dropdown(
+                            label="Civil Status",
+                            value=edit_form_state["civil_status"],
+                            options=[
+                                ft.dropdown.Option("Single"),
+                                ft.dropdown.Option("Married"),
+                                ft.dropdown.Option("Separated"),
+                                ft.dropdown.Option("Divorced"),
+                                ft.dropdown.Option("Widowed"),
+                                ft.dropdown.Option("Other")
+                            ],
+                            width=250,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            on_change=lambda e: edit_form_state.update({"civil_status": e.control.value})
+                        ),
+                    ]),
+                    ft.Row([
+                        ft.TextField(
+                            label="Contact Number",
+                            value=edit_form_state["phone"],
+                            width=520,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            text_style=ft.TextStyle(color=HR_TEXT),
+                            label_style=ft.TextStyle(color=HR_TEXT),
+                            on_change=lambda e: edit_form_state.update({"phone": e.control.value})
+                        ),
+                    ]),
+                    ft.Row([
+                        ft.TextField(
+                            label="Address",
+                            value=edit_form_state["address"],
+                            width=520,
+                            multiline=True,
+                            min_lines=2,
+                            max_lines=3,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            text_style=ft.TextStyle(color=HR_TEXT),
+                            label_style=ft.TextStyle(color=HR_TEXT),
+                            on_change=lambda e: edit_form_state.update({"address": e.control.value})
+                        ),
+                    ]),
+                ], spacing=15)
+            elif edit_current_step.current == 1:
+                visit_date_field = ft.Ref[ft.TextField]()
+                def update_visit_date(e=None):
+                    if e is not None and hasattr(e, 'control') and hasattr(e.control, 'value'):
+                        edit_form_state["visit_date"] = e.control.value
+                    elif visit_date_field.current is not None:
+                        visit_date_field.current.value = edit_form_state.get("visit_date", "")
+                return ft.Column([
+                    ft.Row([
+                        ft.Column([
+                            ft.Text("Visit Type", size=14, color=HR_TEXT, weight=ft.FontWeight.BOLD),
+                            ft.RadioGroup(
+                                content=ft.Column([
+                                    ft.Radio(
+                                        value="New Patient",
+                                        label="New Patient",
+                                        fill_color=HR_PRIMARY,
+                                        active_color=HR_PRIMARY,
+                                    ),
+                                    ft.Radio(
+                                        value="Follow-up",
+                                        label="Follow-up",
+                                        fill_color=HR_PRIMARY,
+                                        active_color=HR_PRIMARY,
+                                    ),
+                                    ft.Radio(
+                                        value="Walk-in",
+                                        label="Walk-in",
+                                        fill_color=HR_PRIMARY,
+                                        active_color=HR_PRIMARY,
+                                    )
+                                ], spacing=5),
+                                value=edit_form_state["visit_type"],
+                                on_change=lambda e: edit_form_state.update({"visit_type": e.control.value})
+                            )
+                        ], spacing=5)
+                    ]),
+                    ft.Row([
+                        ft.Dropdown(
+                            label="Assigned Doctor",
+                            value=edit_form_state["assigned_doctor"],
+                            options=[ft.dropdown.Option(d["id"], d["name"]) for d in doctors],
+                            width=520,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            on_change=lambda e: edit_form_state.update({"assigned_doctor": e.control.value})
+                        ),
+                    ]),
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Row([
+                                ft.TextField(
+                                    ref=visit_date_field,
+                                    key="visit_date_field",
+                                    label="Visit Date",
+                                    value=edit_form_state.get("visit_date", ""),
+                                    width=250,
+                                    border_color=HR_BORDER,
+                                    focused_border_color=HR_PRIMARY,
+                                    text_style=ft.TextStyle(color=HR_TEXT),
+                                    label_style=ft.TextStyle(color=HR_TEXT),
+                                    read_only=True,
+                                    on_change=update_visit_date,
+                                    on_focus=lambda e: show_date_picker_dialog(
+                                        page,
+                                        visit_date_field.current,
+                                        edit_form_state,
+                                        "visit_date",
+                                        "Select Visit Date",
+                                        get_edit_current_step_content,
+                                        min_date=datetime.now()
+                                    )
+                                ),
+                                ft.IconButton(
+                                    ft.Icons.CALENDAR_MONTH,
+                                    tooltip="Select Visit Date",
+                                    on_click=lambda e: show_date_picker_dialog(
+                                        page,
+                                        visit_date_field.current,
+                                        edit_form_state,
+                                        "visit_date",
+                                        "Select Visit Date",
+                                        get_edit_current_step_content,
+                                        min_date=datetime.now()
+                                    )
+                                ),
+                            ]),
+                            key="visit_date_container"
+                        ),
+                        ft.Container(width=10),
+                        ft.TextField(
+                            label="Visit Time",
+                            value="",
+                            width=200,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            text_style=ft.TextStyle(color=HR_TEXT),
+                            label_style=ft.TextStyle(color=HR_TEXT)
+                        ),
+                    ]),
+                    ft.Row([
+                        ft.TextField(
+                            label="Insurance Provider",
+                            value=edit_form_state["insurance_provider"],
+                            width=250,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            text_style=ft.TextStyle(color=HR_TEXT),
+                            label_style=ft.TextStyle(color=HR_TEXT),
+                            on_change=lambda e: edit_form_state.update({"insurance_provider": e.control.value})
+                        ),
+                        ft.Container(width=10),
+                        ft.Dropdown(
+                            label="Referral Source",
+                            value=edit_form_state["referral_source"],
+                            options=[
+                                ft.dropdown.Option("Walk-in"),
+                                ft.dropdown.Option("Friend"),
+                                ft.dropdown.Option("Facebook"),
+                                ft.dropdown.Option("Other")
+                            ],
+                            width=250,
+                            border_color=HR_BORDER,
+                            focused_border_color=HR_PRIMARY,
+                            on_change=lambda e: edit_form_state.update({"referral_source": e.control.value})
+                        ),
+                    ]),
+                ], spacing=15)
+            elif edit_current_step.current == 2:
+                allergies_field = ft.TextField(
+                    label="Allergies (comma-separated or one per line)",
+                    value=edit_form_state.get("allergies", ""),
+                    width=520,
+                    multiline=True,
+                    min_lines=2,
+                    max_lines=4,
+                    border_color=HR_BORDER,
+                    focused_border_color=HR_PRIMARY,
+                    text_style=ft.TextStyle(color=HR_TEXT),
+                    label_style=ft.TextStyle(color=HR_TEXT),
+                    on_change=lambda e: edit_form_state.update({"allergies": e.control.value})
+                )
+                chronic_illnesses_field = ft.TextField(
+                    label="Chronic Illnesses (comma-separated or one per line)",
+                    value=edit_form_state.get("chronic_illnesses", ""),
+                    width=520,
+                    multiline=True,
+                    min_lines=2,
+                    max_lines=4,
+                    border_color=HR_BORDER,
+                    focused_border_color=HR_PRIMARY,
+                    text_style=ft.TextStyle(color=HR_TEXT),
+                    label_style=ft.TextStyle(color=HR_TEXT),
+                    on_change=lambda e: edit_form_state.update({"chronic_illnesses": e.control.value})
+                )
+                medications_field = ft.TextField(
+                    label="Current Medications (comma-separated or one per line)",
+                    value=edit_form_state.get("current_medications", ""),
+                    width=520,
+                    multiline=True,
+                    min_lines=2,
+                    max_lines=4,
+                    border_color=HR_BORDER,
+                    focused_border_color=HR_PRIMARY,
+                    text_style=ft.TextStyle(color=HR_TEXT),
+                    label_style=ft.TextStyle(color=HR_TEXT),
+                    on_change=lambda e: edit_form_state.update({"current_medications": e.control.value})
+                )
+                emergency_contact_container = ft.Row([
+                    ft.TextField(
+                        label="Emergency Contact Name",
+                        value=edit_form_state["emergency_contact_name"],
+                        width=250,
+                        border_color=HR_BORDER,
+                        focused_border_color=HR_PRIMARY,
+                        text_style=ft.TextStyle(color=HR_TEXT),
+                        label_style=ft.TextStyle(color=HR_TEXT),
+                        on_change=lambda e: edit_form_state.update({"emergency_contact_name": e.control.value})
+                    ),
+                    ft.Container(width=10),
+                    ft.TextField(
+                        label="Emergency Contact Number",
+                        value=edit_form_state["emergency_contact_phone"],
+                        width=250,
+                        border_color=HR_BORDER,
+                        focused_border_color=HR_PRIMARY,
+                        text_style=ft.TextStyle(color=HR_TEXT),
+                        label_style=ft.TextStyle(color=HR_TEXT),
+                        on_change=lambda e: edit_form_state.update({"emergency_contact_phone": e.control.value})
+                    ),
+                ])
+                return ft.Column([
+                    allergies_field,
+                    chronic_illnesses_field,
+                    medications_field,
+                    emergency_contact_container,
+                    ft.TextField(
+                        label="Remarks",
+                        value=edit_form_state["remarks"],
+                        width=520,
+                        multiline=True,
+                        min_lines=3,
+                        max_lines=5,
+                        border_color=HR_BORDER,
+                        focused_border_color=HR_PRIMARY,
+                        text_style=ft.TextStyle(color=HR_TEXT),
+                        label_style=ft.TextStyle(color=HR_TEXT),
+                        on_change=lambda e: edit_form_state.update({"remarks": e.control.value})
+                    ),
+                ], spacing=15)
+        def handle_edit_next(e):
+            if edit_current_step.current < 2:
+                edit_current_step.current += 1
+                edit_modal_content.current.content.controls[2].content = get_edit_current_step_content()
+                page.update()
+        def handle_edit_back(e):
+            if edit_current_step.current > 0:
+                edit_current_step.current -= 1
+                edit_modal_content.current.content.controls[2].content = get_edit_current_step_content()
+                page.update()
+        def handle_edit_submit(e=None):
+            # Validation (same as add)
+            required_fields = ["full_name", "phone", "gender", "birthdate", "visit_type"]
+            missing_fields = [field for field in required_fields if not edit_form_state.get(field)]
+            if missing_fields:
+                error_text.value = "Please fill in all required fields: " + ", ".join(missing_fields)
+                error_text.visible = True
+                page.update()
+                return
             try:
-                # Convert age to integer
-                age = int(edit_form_state["age"])
-                
-                # Update patient in database
                 success, message = update_patient(
                     patient_id=patient["id"],
                     full_name=edit_form_state["full_name"],
-                    last_name=edit_form_state["last_name"],
-                    age=age,
+                    birthdate=edit_form_state["birthdate"],
                     gender=edit_form_state["gender"],
+                    civil_status=edit_form_state["civil_status"],
                     phone=edit_form_state["phone"],
                     address=edit_form_state["address"],
+                    emergency_contact_name=edit_form_state["emergency_contact_name"],
+                    emergency_contact_phone=edit_form_state["emergency_contact_phone"],
+                    allergies=edit_form_state["allergies"],
+                    chronic_illnesses=edit_form_state["chronic_illnesses"],
+                    current_medications=edit_form_state["current_medications"],
+                    remarks=edit_form_state["remarks"],
                     status=edit_form_state["status"],
-                    doctor_id=edit_form_state["doctor_id"],
-                    consultation_type=edit_form_state["consultation_type"]
+                    doctor_id=edit_form_state["assigned_doctor"],
+                    visit_type=edit_form_state["visit_type"],
+                    insurance_provider=edit_form_state["insurance_provider"],
+                    referral_source=edit_form_state["referral_source"],
+                    visit_date=edit_form_state["visit_date"]
                 )
-                
                 if success:
                     edit_patient_modal.current.visible = False
                     refresh_patients()
@@ -910,112 +1474,57 @@ def create_patients_tab(page, user):
                     error_text.value = message
                     error_text.visible = True
                 page.update()
-                
-            except ValueError:
-                error_text.value = "Please enter a valid age."
-                error_text.visible = True
-                page.update()
             except Exception as e:
                 error_text.value = f"Error: {str(e)}"
                 error_text.visible = True
                 page.update()
-
-        # Create edit modal content
-        edit_modal_content = ft.Container(
+        # Modal content (stepper form)
+        edit_modal_content = ft.Ref[ft.Container]()
+        edit_modal_content.current = ft.Container(
             width=600,
-            height=650,
+            height=700,
             bgcolor=HR_WHITE,
             border_radius=10,
             padding=30,
             content=ft.Column([
-                # Header Section
                 ft.Container(
-                    content=ft.Column(
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=0,
-                        controls=[
-                            ft.Text(
-                                "Edit Patient",
-                                size=24,
-                                weight=ft.FontWeight.BOLD,
-                                color=HR_TEXT,
+                    content=ft.Stack([
+                        ft.Column(
+                            horizontal_alignment=ft.CrossAxisAlignment.START,
+                            spacing=0,
+                            controls=[
+                                ft.Text(
+                                    "Edit Patient",
+                                    size=24,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=HR_TEXT,
+                                    text_align=ft.TextAlign.LEFT,
+                                ),
+                                ft.Text(
+                                    "Update patient record with comprehensive information",
+                                    size=12,
+                                    color=HR_TEXT,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                            ],
+                        ),
+                        ft.Container(
+                            content=ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_color=HR_TEXT,
+                                icon_size=20,
+                                on_click=lambda e: (setattr(edit_patient_modal.current, "visible", False), page.update())
                             ),
-                            ft.Text(
-                                f"ID: {patient['id']}",
-                                size=14,
-                                color=HR_TEXT,
-                            ),
-                        ],
-                    ),
+                            alignment=ft.alignment.top_right,
+                        ),
+                    ]),
                     padding=ft.padding.only(bottom=20),
                 ),
-                # Form Fields Section
+                edit_create_stepper(),
                 ft.Container(
-                    content=ft.Column(
-                        spacing=15,
-                        controls=[
-                            # Name Fields Row
-                            ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        content=edit_first_name,
-                                        expand=1,
-                                    ),
-                                    ft.Container(width=10),
-                                    ft.Container(
-                                        content=edit_last_name,
-                                        expand=1,
-                                    ),
-                                ],
-                            ),
-                            # Contact Information
-                            ft.Container(
-                                content=edit_phone,
-                                width=520,
-                            ),
-                            # Personal Information Row
-                            ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        content=edit_age,
-                                        expand=1,
-                                    ),
-                                    ft.Container(width=10),
-                                    ft.Container(
-                                        content=edit_gender,
-                                        expand=1,
-                                    ),
-                                    ft.Container(width=10),
-                                    ft.Container(
-                                        content=edit_status,
-                                        expand=1,
-                                    ),
-                                ],
-                            ),
-                            # Doctor and Consultation Row
-                            ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        content=edit_doctor,
-                                        expand=1,
-                                    ),
-                                    ft.Container(width=10),
-                                    ft.Container(
-                                        content=edit_consultation,
-                                        expand=1,
-                                    ),
-                                ],
-                            ),
-                            # Address
-                            ft.Container(
-                                content=edit_address,
-                                width=520,
-                            ),
-                        ],
-                    ),
+                    content=get_edit_current_step_content(),
                     width=520,
                 ),
-                # Messages Section
                 ft.Container(
                     content=ft.Column(
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1024,7 +1533,6 @@ def create_patients_tab(page, user):
                     ),
                     padding=ft.padding.symmetric(vertical=10),
                 ),
-                # Buttons Section
                 ft.Container(
                     content=ft.Row(
                         controls=[
@@ -1035,7 +1543,8 @@ def create_patients_tab(page, user):
                                     padding=ft.padding.symmetric(horizontal=24, vertical=12),
                                 ),
                                 width=120,
-                                on_click=lambda e: (setattr(edit_patient_modal.current, "visible", False), page.update())
+                                on_click=handle_edit_back,
+                                visible=edit_current_step.current > 0
                             ),
                             ft.Container(width=10),
                             ft.ElevatedButton(
@@ -1045,7 +1554,7 @@ def create_patients_tab(page, user):
                                     bgcolor=HR_PRIMARY,
                                     padding=ft.padding.symmetric(horizontal=24, vertical=12),
                                 ),
-                                width=160,
+                                width=200,
                                 on_click=handle_edit_submit
                             ),
                         ],
@@ -1053,7 +1562,7 @@ def create_patients_tab(page, user):
                     ),
                     padding=ft.padding.only(top=10),
                 ),
-            ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO),
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=10,
@@ -1061,237 +1570,16 @@ def create_patients_tab(page, user):
                 offset=ft.Offset(0, 3),
             ),
         )
-
-        edit_patient_modal.current.content = edit_modal_content
+        edit_patient_modal.current.content = edit_modal_content.current
         edit_patient_modal.current.visible = True
         page.update()
-
-    def filter_words_only(items):
-        if not items:
-            return []
-        if isinstance(items, str):
-            # Split the string by commas and clean each item
-            items = [x.strip() for x in items.split(',') if x.strip()]
-        return [str(x) for x in items if isinstance(x, (str, int)) and (isinstance(x, str) and not x.isdigit() or isinstance(x, int))]
-
-    def create_patient_card(patient):
-        # Define status colors
-        status_color = status_colors.get(patient.get('status', 'Pending'), HR_GRAY)
-        
-        # Get doctor and consultation info with fallbacks
-        doctor_info = patient.get('doctor_name', 'Awaiting Doctor Assignment')
-        consultation_info = patient.get('consultation_type', 'To be determined by doctor')
-        
-        # Create avatar content based on photo availability
-        avatar_content = (
-            ft.Container(
-                content=ft.Image(
-                    src=patient.get('photo_path'),
-                    width=60,
-                    height=60,
-                    fit=ft.ImageFit.COVER,
-                ),
-                border_radius=30,
-                clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                border=ft.border.all(2, HR_PRIMARY),
-            ) if patient.get('photo_path') else ft.Text(patient.get('full_name', 'P')[0].upper(), size=24)
-        )
-        
-        # Prepare chronic illnesses and allergies display (filter out numbers)
-        chronic_illnesses = ', '.join(filter_words_only(patient.get('chronic_illnesses', ''))) or "None"
-        allergies = ', '.join(filter_words_only(patient.get('allergies', ''))) or "None"
-        current_medications = ', '.join(filter_words_only(patient.get('current_medications', ''))) or "None"
-        
-        # Calculate age from birthdate if available
-        def calculate_age_from_birthdate(birthdate_str):
-            try:
-                # Try parsing in common formats
-                for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
-                    try:
-                        birthdate = datetime.strptime(birthdate_str, fmt)
-                        break
-                    except Exception:
-                        continue
-                else:
-                    return None
-                today = datetime.today()
-                return today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
-            except Exception:
-                return None
-        birthdate_str = patient.get('birthdate')
-        age = None
-        if birthdate_str:
-            age = calculate_age_from_birthdate(birthdate_str)
-        if age is None:
-            age = patient.get('age', 'N/A')
-        
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    # Header with avatar and status
-                    ft.Row(
-                        controls=[
-                            ft.CircleAvatar(
-                                content=avatar_content,
-                                radius=25,
-                                bgcolor=HR_PRIMARY,
-                                color=HR_WHITE,
-                            ),
-                            ft.Container(
-                                content=ft.Text(
-                                    patient.get('status', 'Pending'),
-                                    color=HR_WHITE,
-                                    size=10,
-                                    weight=ft.FontWeight.W_500,
-                                ),
-                                bgcolor=status_color,
-                                padding=ft.padding.symmetric(horizontal=8, vertical=3),
-                                border_radius=12,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    # Patient's name and ID
-                    ft.Text(
-                        f"{patient.get('full_name', 'Unknown Patient')}", 
-                        size=16,
-                        weight=ft.FontWeight.BOLD,
-                        color=HR_TEXT,
-                        max_lines=1,
-                        overflow=ft.TextOverflow.ELLIPSIS,
-                        width=250,
-                    ),
-                    ft.Text(
-                        f"ID: {str(patient.get('id', 'N/A')).zfill(4)}", 
-                        size=12,
-                        color=HR_TEXT,
-                    ),
-                    # Patient information
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.PHONE, size=14, color=HR_TEXT),
-                                        ft.Text(patient.get("phone", "No phone"), size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.PERSON, size=14, color=HR_TEXT),
-                                        ft.Text(f"{age} years, {patient.get('gender', 'Not specified')}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.MEDICAL_SERVICES, size=14, color=HR_TEXT),
-                                        ft.Text(doctor_info, size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.CALENDAR_TODAY, size=14, color=HR_TEXT),
-                                        ft.Text(consultation_info, size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.WARNING, size=14, color=HR_TEXT),
-                                        ft.Text(f"Allergies: {allergies}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.MEDICAL_SERVICES, size=14, color=HR_TEXT),
-                                        ft.Text(f"Chronic Illnesses: {chronic_illnesses}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.MEDICATION, size=14, color=HR_TEXT),
-                                        ft.Text(f"Medications: {current_medications}", size=12, color=HR_TEXT, max_lines=1, width=200, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ],
-                                    spacing=6,
-                                ),
-                            ],
-                            spacing=6,
-                        ),
-                        padding=ft.padding.only(top=8),
-                    ),
-                    # Action buttons
-                    ft.Container(
-                        content=ft.Row(
-                            controls=[
-                                ft.ElevatedButton(
-                                    "View Details",
-                                    icon=ft.Icons.VISIBILITY_OUTLINED,
-                                    style=ft.ButtonStyle(
-                                        bgcolor=HR_WHITE,
-                                        color=HR_PRIMARY,
-                                        side=ft.border.all(1, HR_PRIMARY),
-                                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                                        shape=ft.RoundedRectangleBorder(radius=6),
-                                    ),
-                                    on_click=lambda e, p=patient: show_patient_details(p),
-                                    height=36,
-                                ),
-                                ft.Container(expand=True),  # Spacer
-                                ft.IconButton(
-                                    icon=ft.Icons.EDIT_OUTLINED,
-                                    icon_size=18,
-                                    icon_color=HR_INFO,
-                                    tooltip="Edit",
-                                    on_click=lambda e, p=patient: handle_edit_patient(p),
-                                    style=ft.ButtonStyle(
-                                        side=ft.border.all(1, HR_BORDER),
-                                        shape=ft.RoundedRectangleBorder(radius=6),
-                                    ),
-                                ),
-                                ft.IconButton(
-                                    icon=ft.Icons.DELETE_OUTLINE,
-                                    icon_size=18,
-                                    icon_color=HR_ERROR,
-                                    tooltip="Delete",
-                                    on_click=lambda e, p=patient: handle_delete_patient(p.get('id')),
-                                    style=ft.ButtonStyle(
-                                        side=ft.border.all(1, HR_BORDER),
-                                        shape=ft.RoundedRectangleBorder(radius=6),
-                                    ),
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.END,
-                            spacing=6,
-                        ),
-                        padding=ft.padding.only(top=8),
-                    ),
-                ],
-                spacing=10,
-            ),
-            padding=15,
-            bgcolor=HR_WHITE,
-            border_radius=8,
-            width=280,
-            border=ft.border.all(1, HR_BORDER),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=5,
-                color=ft.Colors.with_opacity(0.1, HR_TEXT),
-                offset=ft.Offset(0, 2),
-            ),
-        )
 
     # State for fields
     patient_form_state = {
         # Basic Information
         "full_name": "",
         "birthdate": "",
-        "visit_date": "",
+        "visit_date": datetime.now().strftime("%Y-%m-%d"),  # Default to today
         "gender": "Male",
         "civil_status": "Single",
         "phone": "",
@@ -1381,7 +1669,7 @@ def create_patients_tab(page, user):
         label="Assigned Doctor",
         value=patient_form_state.get("assigned_doctor", ""),
         width=250,
-        options=[ft.dropdown.Option(d["id"], d["name"]) for d in doctors],
+        options=[ft.dropdown.Option("", "Unassigned")] + [ft.dropdown.Option(d["id"], d["name"]) for d in doctors],
         border_color=HR_BORDER,
         focused_border_color=HR_PRIMARY,
         text_style=ft.TextStyle(color=HR_TEXT),
@@ -1446,20 +1734,54 @@ def create_patients_tab(page, user):
                 current_step.current = step
                 add_patient_modal.current.content.content.controls[2].content = get_current_step_content()
                 page.update()
+
+        # Step 0 colors
+        if current_step.current > 0:
+            icon_color_0 = HR_SUCCESS
+            text_color_0 = HR_SUCCESS
+        elif current_step.current == 0:
+            icon_color_0 = HR_PRIMARY
+            text_color_0 = HR_PRIMARY
+        else:
+            icon_color_0 = HR_GRAY
+            text_color_0 = HR_GRAY
+
+        # Step 1 colors
+        if current_step.current > 1:
+            icon_color_1 = HR_SUCCESS
+            text_color_1 = HR_SUCCESS
+        elif current_step.current == 1:
+            icon_color_1 = HR_PRIMARY
+            text_color_1 = HR_PRIMARY
+        else:
+            icon_color_1 = HR_GRAY
+            text_color_1 = HR_GRAY
+
+        # Step 2 colors
+        if current_step.current == 2:
+            icon_color_2 = HR_PRIMARY
+            text_color_2 = HR_PRIMARY
+        elif current_step.current > 2:
+            icon_color_2 = HR_SUCCESS
+            text_color_2 = HR_SUCCESS
+        else:
+            icon_color_2 = HR_GRAY
+            text_color_2 = HR_GRAY
+
         return ft.Container(
             content=ft.Row([
                 ft.Container(
                     content=ft.Column([
                         ft.IconButton(
                             icon=ft.Icons.PERSON_OUTLINE,
-                            icon_color=HR_PRIMARY if current_step.current >= 0 else HR_GRAY,
+                            icon_color=icon_color_0,
                             icon_size=24,
                             on_click=lambda e: handle_step_click(0)
                         ),
                         ft.TextButton(
                             text="Basic Details",
                             style=ft.ButtonStyle(
-                                color=HR_PRIMARY if current_step.current >= 0 else HR_GRAY,
+                                color=text_color_0,
                             ),
                             on_click=lambda e: handle_step_click(0)
                         ),
@@ -1468,7 +1790,7 @@ def create_patients_tab(page, user):
                 ),
                 ft.Container(
                     content=ft.Container(
-                        bgcolor=HR_PRIMARY if current_step.current >= 1 else HR_GRAY,
+                        bgcolor=icon_color_1,
                         height=2,
                         width=50,
                     ),
@@ -1478,14 +1800,14 @@ def create_patients_tab(page, user):
                     content=ft.Column([
                         ft.IconButton(
                             icon=ft.Icons.DESCRIPTION_OUTLINED,
-                            icon_color=HR_PRIMARY if current_step.current >= 1 else HR_GRAY,
+                            icon_color=icon_color_1,
                             icon_size=24,
                             on_click=lambda e: handle_step_click(1)
                         ),
                         ft.TextButton(
                             text="Visit Info",
                             style=ft.ButtonStyle(
-                                color=HR_PRIMARY if current_step.current >= 1 else HR_GRAY,
+                                color=text_color_1,
                             ),
                             on_click=lambda e: handle_step_click(1)
                         ),
@@ -1494,7 +1816,7 @@ def create_patients_tab(page, user):
                 ),
                 ft.Container(
                     content=ft.Container(
-                        bgcolor=HR_PRIMARY if current_step.current >= 2 else HR_GRAY,
+                        bgcolor=icon_color_2,
                         height=2,
                         width=50,
                     ),
@@ -1503,15 +1825,15 @@ def create_patients_tab(page, user):
                 ft.Container(
                     content=ft.Column([
                         ft.IconButton(
-                            ft.Icons.INFO_OUTLINE,
-                            icon_color=HR_PRIMARY if current_step.current >= 2 else HR_GRAY,
+                            icon=ft.Icons.INFO_OUTLINE,
+                            icon_color=icon_color_2,
                             icon_size=24,
                             on_click=lambda e: handle_step_click(2)
                         ),
                         ft.TextButton(
                             text="Pre-Medical",
                             style=ft.ButtonStyle(
-                                color=HR_PRIMARY if current_step.current >= 2 else HR_GRAY,
+                                color=text_color_2,
                             ),
                             on_click=lambda e: handle_step_click(2)
                         ),
@@ -1878,7 +2200,7 @@ def create_patients_tab(page, user):
 
     def handle_submit(e=None):
         # Simple validation
-        required_fields = ["full_name", "phone", "gender", "birthdate", "visit_type", "assigned_doctor"]
+        required_fields = ["full_name", "phone", "gender", "birthdate", "visit_type"]  # removed assigned_doctor
         missing_fields = [field for field in required_fields if not patient_form_state.get(field)]
         
         if missing_fields:
@@ -1890,7 +2212,7 @@ def create_patients_tab(page, user):
         try:
             
             # Get photo path if photo was uploaded
-            photo_path = patient_form_state["photo"].path if patient_form_state["photo"] else None
+            photo_path = patient_form_state["photo"].path if patient_form_state.get("photo") else None
             
             # Add patient to database
             success, message, patient_id = add_patient(
@@ -1932,7 +2254,7 @@ def create_patients_tab(page, user):
                     # Patient ID is generated automatically by the database
                     "visit_type": "New Patient",
                     "assigned_doctor": "",
-                    "visit_date": "",
+                    "visit_date": datetime.now().strftime("%Y-%m-%d"),  # Reset to today
                     "insurance_provider": "",
                     "referral_source": "",
                     # Pre-Medical Info
@@ -1959,9 +2281,8 @@ def create_patients_tab(page, user):
                 error_text.visible = True
                 add_patient_modal.current.visible = False
                 
-                # Refresh patient list
-                patients = get_all_patients()
-                patients_grid.controls = [create_patient_card(p) for p in patients]
+                # Refresh patient list and show cards immediately
+                refresh_patients()
                 page.update()
             else:
                 error_text.value = message
@@ -2080,11 +2401,11 @@ def create_patients_tab(page, user):
         filtered_patients = [
             p for p in patients
             if search_term in p['full_name'].lower() or 
-               search_term in p['last_name'].lower() or 
+               search_term in p.get('last_name', '').lower() or 
                search_term in str(p['id']).lower() or
                search_term in p.get('phone', '').lower()
         ]
-        patients_grid.controls = [create_patient_card(p) for p in filtered_patients]
+        patients_grid.controls = [create_patient_card(p, show_patient_details, handle_edit_patient, handle_delete_patient) for p in filtered_patients]
         page.update()
 
     search_field = ft.TextField(
@@ -2134,14 +2455,14 @@ def create_patients_tab(page, user):
     patients_grid = ft.Row(
         controls=[
             ft.Container(
-                content=create_patient_card(p),
+                content=create_patient_card(p, show_patient_details, handle_edit_patient, handle_delete_patient),
                 width=280,  # Reduced from 300
-                margin=ft.margin.only(bottom=15, right=15)  # Reduced margins
+                margin=ft.margin.only(bottom=15, right=10)  # Fixed margins for spacing
             ) for p in patients
         ],
         wrap=True,
-        spacing=0,
-        run_spacing=0,
+        spacing=10,      # Fixed horizontal spacing
+        run_spacing=15,  # Fixed vertical spacing
         width=900,  # Reduced from 1000 to fit better with smaller cards
     )
 
@@ -2370,52 +2691,56 @@ def dashboard_ui(page, user):
         )
 
     def create_appointment_item(apt, selected=False, on_select=None):
-        status_color = {
-            "completed": HR_SUCCESS,
-            "pending": HR_WARNING,
-            "cancelled": HR_ERROR
-        }.get(apt["status"].lower(), HR_GRAY)
-        
-        return ft.Container(
+        # Define status_color for the dashboard appointment item
+        status_colors = {
+            "Scheduled": HR_SUCCESS,
+            "Completed": HR_INFO,
+            "Pending": HR_WARNING,
+            "Cancelled": HR_ERROR,
+            "No Show": HR_ERROR
+        }
+        status_color = status_colors.get(apt.get('status', 'Scheduled'), HR_TEXT)
+        # Create the appointment item container
+        item = ft.Container(
             content=ft.Row([
                 ft.Container(
-                    width=40,
-                    height=40,
-                    border_radius=8,
-                    bgcolor=f"{HR_PRIMARY}10",
-                    content=ft.Text(
-                        apt["patient_name"][0].upper(),
-                        color=HR_PRIMARY,
-                        weight=ft.FontWeight.BOLD,
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(
+                                apt["patient_name"],
+                                size=16,
+                                weight=ft.FontWeight.W_500,
+                            ),
+                            ft.Text(
+                                apt["doctor_name"],
+                                size=14,
+                                color=ft.Colors.GREY_700,
+                            ),
+                        ],
+                        spacing=2,
                     ),
-                    alignment=ft.alignment.center,
+                    expand=True,
                 ),
-                ft.Column([
-                    ft.Text(apt["patient_name"], weight=ft.FontWeight.BOLD, color=HR_TEXT),
-                    ft.Text(apt["doctor_name"], size=12, color=HR_GRAY),
-                ], spacing=2, expand=True, alignment=ft.MainAxisAlignment.CENTER),
-                ft.Column([
-                    ft.Text(apt["time"], color=HR_TEXT, weight=ft.FontWeight.W_500),
-                    ft.Container(
-                        content=ft.Text(
-                            apt["status"].capitalize(),
-                            color=ft.Colors.WHITE,
-                            size=10,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                        bgcolor=status_color,
-                        padding=ft.padding.symmetric(horizontal=8, vertical=2),
-                        border_radius=10,
-                    )
-                ], spacing=4, horizontal_alignment=ft.CrossAxisAlignment.END),
-            ]),
-            padding=ft.padding.symmetric(vertical=12, horizontal=16),
-            bgcolor=ft.Colors.WHITE if not selected else f"{HR_PRIMARY}10",
+                ft.Container(
+                    content=ft.Text(
+                        apt["time"],
+                        size=14,
+                        color=ft.Colors.GREY_700,
+                    ),
+                    padding=ft.padding.only(right=10),
+                ),
+                ft.Icon(ft.Icons.CHECK_CIRCLE, color=status_color, size=18) if apt.get('status') == 'completed' else (
+                    ft.Icon(ft.Icons.SCHEDULE, color=status_color, size=18) if apt.get('status') == 'pending' else ft.Icon(ft.Icons.ERROR, color=status_color, size=18)
+                ),
+            ], spacing=12, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=10,
+            border=ft.border.all(1, ft.Colors.GREY_300),
             border_radius=8,
-            border=ft.border.all(1, f"{HR_PRIMARY}30" if selected else HR_BORDER),
-            on_click=on_select,
-            data=apt,
+            bgcolor=ft.Colors.WHITE if not selected else ft.Colors.BLUE_50,
+            ink=True,
+            on_click=lambda e: on_select(e, apt) if on_select else None,
         )
+        return item
 
     def create_consultation_notes(apt):
         return ft.Container(
@@ -2440,171 +2765,216 @@ def dashboard_ui(page, user):
 
     # Helper to create dashboard content (returns the dashboard UI content)
     def create_dashboard_ui_content(page, user):
-        # --- Static/mock data ---
-        appointments = [
-            {"patient_name": "Audrey Mann", "doctor_name": "Dr. Smith", "time": "09:00 AM", "date": "06/05/24", "status": "completed", "notes": "Patient reported improvement in symptoms. Prescribed medication refill and scheduled follow-up in 2 weeks."},
-            {"patient_name": "Rudy Hikke", "doctor_name": "Dr. Johnson", "time": "09:30 AM", "date": "06/05/24", "status": "completed", "notes": "Routine checkup completed. Blood work ordered. Patient to return in 1 month."},
-            {"patient_name": "Johanna Ebert", "doctor_name": "Dr. Williams", "time": "10:00 AM", "date": "06/05/24", "status": "in-progress", "notes": "Patient presents with persistent cough and fever. Ordered chest X-ray and prescribed antibiotics."},
-            {"patient_name": "Armando Shade", "doctor_name": "Dr. Brown", "time": "10:30 AM", "date": "06/05/24", "status": "pending", "notes": "Annual physical examination. Patient reports feeling well overall."},
-            {"patient_name": "Bessi Shair", "doctor_name": "Dr. Davis", "time": "11:00 AM", "date": "06/05/24", "status": "pending", "notes": "Follow-up for chronic condition management. Reviewing lab results."},
-            {"patient_name": "Tamara Dewski", "doctor_name": "Dr. Miller", "time": "11:30 AM", "date": "06/05/24", "status": "pending", "notes": "New patient consultation. Completing initial assessment."},
-            {"patient_name": "Phoebe Fadil", "doctor_name": "Dr. Wilson", "time": "12:45 PM", "date": "06/05/24", "status": "pending", "notes": "Pre-operative consultation. Reviewing medical history and procedure details."},
-        ]
-        selected_apt = appointments[2]  # Johanna Ebert as ongoing
-
-        # Info Cards
-        info_cards = ft.Row([
-            create_stat_card("Appointments", "24", ft.Icons.CALENDAR_MONTH, HR_PRIMARY, 12.5),
-            create_stat_card("New Patients", "8", ft.Icons.PERSON_ADD, HR_INFO, 8.3),
-            create_stat_card("Follow Up", "5", ft.Icons.UPDATE, HR_WARNING, -2.1),
-        ], spacing=16)
-
-        # Appointments List
-        appointments_list = ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    ft.Text("Today's Appointments", size=16, weight=ft.FontWeight.BOLD, color=HR_TEXT),
-                    ft.Container(expand=True),
-                    ft.Text("View All", size=12, color=HR_PRIMARY),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Container(height=16),
-                ft.Column([
-                    create_appointment_item(apt, selected=(apt==selected_apt), 
-                                         on_select=lambda e: update_selected_appointment(e.control.data))
-                    for apt in appointments
-                ], spacing=8, scroll=ft.ScrollMode.AUTO, expand=True),
-            ], expand=True),
-            padding=20,
-            bgcolor=HR_WHITE,
-            border_radius=12,
-            shadow=ft.BoxShadow(
-                spread_radius=1,
-                blur_radius=10,
-                color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
-            ),
-            expand=True,
-        )
-
-        # Ongoing Appointment Details
-        def create_detail_row(label, value, icon=None):
-            return ft.Container(
+        print("[DEBUG] Entered create_dashboard_ui_content")
+        try:
+            from database import get_all_appointments, get_all_patients
+            import datetime
+            print("[DEBUG] Fetching appointments and patients...")
+            success, msg, appointments_data = get_all_appointments()
+            patients_data = get_all_patients()
+            print(f"[DEBUG] Appointments fetch success: {success}, count: {len(appointments_data) if appointments_data else 0}")
+            print(f"[DEBUG] Patients count: {len(patients_data) if patients_data else 0}")
+            if not success:
+                appointments_data = []
+            # Sort and get 5 most recent appointments
+            recent_appointments = sorted(
+                appointments_data,
+                key=lambda apt: str(apt.get("appointment_date", "")),
+                reverse=True
+            )[:5]
+            print(f"[DEBUG] Recent appointments count: {len(recent_appointments)}")
+            # State for selected appointment
+            selected_apt = page.session.get('dashboard_selected_apt')
+            if selected_apt is None:
+                selected_apt = None
+            def get_time_str(apt):
+                if apt.get("appointment_date"):
+                    try:
+                        dt = datetime.datetime.strptime(str(apt["appointment_date"]), "%Y-%m-%d %H:%M:%S")
+                        return dt.strftime("%I:%M %p")
+                    except Exception:
+                        return str(apt["appointment_date"])[11:16]
+                return ""
+            # Use a local Ref to track the selected appointment
+            selected_apt_ref = ft.Ref[dict]()
+            details_panel_ref = ft.Ref[ft.Container]()
+            appointment_cards_ref = ft.Ref[ft.Column]()
+            if not hasattr(page, 'dashboard_selected_apt_ref'):
+                page.dashboard_selected_apt_ref = selected_apt_ref
+            else:
+                selected_apt_ref = page.dashboard_selected_apt_ref
+            if selected_apt_ref.current is None and recent_appointments:
+                selected_apt_ref.current = recent_appointments[0]
+            def details_panel(apt):
+                if not apt:
+                    return ft.Container(
+                        content=ft.Text("Select an appointment to view details.", color=HR_GRAY, size=16),
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=10,
+                        padding=30,
+                        expand=True,
+                    )
+                # Find the patient by patient_id
+                patient = None
+                for p in patients_data:
+                    if str(p.get('id')) == str(apt.get('patient_id')):
+                        patient = p
+                        break
+                if not patient:
+                    return ft.Container(
+                        content=ft.Text("Patient details not found.", color=HR_ERROR, size=16),
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=10,
+                        padding=30,
+                        expand=True,
+                    )
+                # Patient summary panel
+                return ft.Container(
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=10,
+                    padding=30,
+                    expand=True,
+                    content=ft.Column([
+                        ft.Text("Patient Summary", size=20, weight=ft.FontWeight.BOLD, color=HR_PRIMARY),
+                        ft.Divider(height=10, color=HR_BORDER),
+                        ft.Row([ft.Icon(ft.Icons.PERSON, size=16, color=HR_TEXT), ft.Text(f"Name: {patient.get('full_name', patient.get('name', ''))}", size=16, color=HR_TEXT)], spacing=8),
+                        ft.Row([ft.Icon(ft.Icons.CALENDAR_TODAY, size=16, color=HR_TEXT), ft.Text(f"Birthdate: {patient.get('birthdate', 'N/A')}", size=15, color=HR_TEXT)], spacing=8),
+                        ft.Row([ft.Icon(ft.Icons.PHONE, size=16, color=HR_TEXT), ft.Text(f"Phone: {patient.get('phone', 'N/A')}", size=15, color=HR_TEXT)], spacing=8),
+                        ft.Row([ft.Icon(ft.Icons.LOCATION_ON, size=16, color=HR_TEXT), ft.Text(f"Address: {patient.get('address', 'N/A')}", size=15, color=HR_TEXT)], spacing=8),
+                        ft.Row([ft.Icon(ft.Icons.WARNING, size=16, color=HR_TEXT), ft.Text(f"Allergies: {', '.join(patient.get('allergies', [])) if patient.get('allergies') else 'None'}", size=15, color=HR_TEXT)], spacing=8),
+                        ft.Row([ft.Icon(ft.Icons.MEDICAL_SERVICES, size=16, color=HR_TEXT), ft.Text(f"Chronic Illnesses: {', '.join(patient.get('chronic_illnesses', [])) if patient.get('chronic_illnesses') else 'None'}", size=15, color=HR_TEXT)], spacing=8),
+                        ft.Container(height=10),
+                        ft.Row([ft.Icon(ft.Icons.INFO, size=16, color=HR_TEXT), ft.Text(f"Status: {patient.get('status', 'N/A')}", size=15, color=HR_TEXT)], spacing=8),
+                    ], spacing=8),
+                )
+            def build_appointment_cards():
+                return ft.Column([
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.Icons.PERSON_OUTLINE, color=HR_PRIMARY, size=20),
+                                    ft.Text(apt.get("patient_name", ""), size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+                                ], spacing=8),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.MEDICAL_SERVICES, color=HR_INFO, size=16),
+                                    ft.Text(apt.get("doctor_name", ""), size=14, color=HR_PRIMARY),
+                                ], spacing=6),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.ACCESS_TIME, color=HR_GRAY, size=16),
+                                    ft.Text(get_time_str(apt), size=13, color=HR_GRAY),
+                                ], spacing=6),
+                            ], spacing=2),
+                            ft.Container(expand=True),
+                            get_status_icon(apt),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        padding=ft.padding.symmetric(vertical=12, horizontal=18),
+                        border=ft.border.all(2, HR_PRIMARY if selected_apt_ref.current and selected_apt_ref.current.get('id') == apt.get('id') else HR_BORDER),
+                        border_radius=10,
+                        bgcolor=ft.Colors.WHITE,
+                        margin=ft.margin.only(bottom=12),
+                        ink=True,
+                        on_click=lambda e, apt=apt: handle_card_click(e, apt),
+                    ) for apt in recent_appointments
+                ], expand=True)
+            def handle_card_click(e, apt):
+                selected_apt_ref.current = apt
+                details_panel_ref.current.content = details_panel(apt)
+                appointment_cards_ref.current.content = build_appointment_cards()
+                page.update()
+            # Header row
+            header = ft.Container(
                 content=ft.Row([
-                    ft.Text(f"{label}:", width=120, color=HR_GRAY, size=14),
-                    ft.Row([
-                        ft.Icon(icon, size=16, color=HR_GRAY) if icon else None,
-                        ft.Text(value, color=HR_TEXT, size=14, weight=ft.FontWeight.W_500),
-                    ], spacing=8) if icon else ft.Text(value, color=HR_TEXT, size=14, weight=ft.FontWeight.W_500),
-                ], vertical_alignment=ft.CrossAxisAlignment.START),
-                padding=ft.padding.symmetric(vertical=8),
+                    ft.Text("Dashboard", size=28, weight=ft.FontWeight.BOLD, color=HR_PRIMARY),
+                    ft.Container(expand=True),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text(user.get('first_name', 'U'), size=16, color=HR_TEXT, weight=ft.FontWeight.W_500),
+                            ft.CircleAvatar(
+                                content=ft.Text(user.get('first_name', 'U')[0].upper(), size=18),
+                                radius=20,
+                                bgcolor=HR_PRIMARY,
+                                color=HR_WHITE,
+                            ),
+                        ], spacing=10),
+                    ),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.only(bottom=10)
             )
-
-        # Action buttons
-        action_buttons = ft.Row([
-            ft.ElevatedButton(
-                "Reschedule",
-                icon=ft.Icons.CALENDAR_TODAY,
-                style=ft.ButtonStyle(
-                    bgcolor=HR_WHITE,
-                    color=HR_PRIMARY,
-                    side=ft.border.BorderSide(1, HR_PRIMARY),
-                    padding=ft.padding.symmetric(horizontal=24, vertical=12),
+            # Recent appointments as horizontal cards with icons
+            def get_status_icon(apt):
+                status = apt.get('status', '').lower()
+                if status == 'completed':
+                    return ft.Icon(ft.Icons.CHECK_CIRCLE, color=HR_SUCCESS, size=22)
+                elif status == 'pending':
+                    return ft.Icon(ft.Icons.SCHEDULE, color=HR_WARNING, size=22)
+                elif status == 'cancelled':
+                    return ft.Icon(ft.Icons.CANCEL, color=HR_ERROR, size=22)
+                else:
+                    return ft.Icon(ft.Icons.HELP_OUTLINE, color=HR_GRAY, size=22)
+            appointment_cards = ft.Column([
+                ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.Icons.PERSON_OUTLINE, color=HR_PRIMARY, size=20),
+                                ft.Text(apt.get("patient_name", ""), size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+                            ], spacing=8),
+                            ft.Row([
+                                ft.Icon(ft.Icons.MEDICAL_SERVICES, color=HR_INFO, size=16),
+                                ft.Text(apt.get("doctor_name", ""), size=14, color=HR_PRIMARY),
+                            ], spacing=6),
+                            ft.Row([
+                                ft.Icon(ft.Icons.ACCESS_TIME, color=HR_GRAY, size=16),
+                                ft.Text(get_time_str(apt), size=13, color=HR_GRAY),
+                            ], spacing=6),
+                        ], spacing=2),
+                        ft.Container(expand=True),
+                        get_status_icon(apt),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    padding=ft.padding.symmetric(vertical=12, horizontal=18),
+                    border=ft.border.all(2, HR_PRIMARY if selected_apt_ref.current and selected_apt_ref.current.get('id') == apt.get('id') else HR_BORDER),
+                    border_radius=10,
+                    bgcolor=ft.Colors.WHITE,
+                    margin=ft.margin.only(bottom=12),
+                    ink=True,
+                    on_click=lambda e, apt=apt: handle_card_click(e, apt),
+                ) for apt in recent_appointments
+            ], expand=True)
+            # Main two-column layout
+            main_row = ft.Row([
+                ft.Container(
+                    ref=appointment_cards_ref,
+                    content=build_appointment_cards(),
+                    width=400,
+                    bgcolor=ft.Colors.with_opacity(0.04, HR_PRIMARY),
+                    border_radius=12,
+                    padding=ft.padding.all(18),
+                    expand=False,
                 ),
-            ),
-            ft.Container(width=12),
-            ft.ElevatedButton(
-                "Finish Consultation",
-                icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
-                style=ft.ButtonStyle(
-                    bgcolor=HR_PRIMARY,
-                    color=HR_WHITE,
-                    padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                ft.Container(width=24),
+                ft.Container(
+                    ref=details_panel_ref,
+                    content=details_panel(selected_apt_ref.current),
+                    expand=True,
                 ),
-            ),
-        ], alignment=ft.MainAxisAlignment.END)
-
-        ongoing_details = ft.Container(
-            content=ft.Column([
-                # Patient info
-                ft.Row([
-                    ft.Container(
-                        width=60,
-                        height=60,
-                        border_radius=30,
-                        bgcolor=f"{HR_PRIMARY}10",
-                        content=ft.Text(
-                            selected_apt["patient_name"][0].upper(),
-                            size=24,
-                            color=HR_PRIMARY,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                        alignment=ft.alignment.center,
-                    ),
-                    ft.Column([
-                        ft.Text(selected_apt["patient_name"], size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
-                        ft.Text(f"{selected_apt['time']} • {selected_apt['date']}", color=HR_GRAY, size=12),
-                    ], spacing=2, alignment=ft.MainAxisAlignment.CENTER),
-                ], spacing=16),
-                ft.Container(height=20),
-                # Patient details
-                create_detail_row("Age", "32 years", ft.Icons.PERSON_OUTLINE),
-                create_detail_row("Phone", "+1 (555) 123-4567", ft.Icons.PHONE),
-                create_detail_row("Issue", "Fever & Cough", ft.Icons.HEALING),
-                create_detail_row("Doctor", selected_apt["doctor_name"], ft.Icons.MEDICAL_SERVICES),
-            ]),
-            padding=24,
-            bgcolor=HR_WHITE,
-            border_radius=12,
-            shadow=ft.BoxShadow(
-                spread_radius=1,
-                blur_radius=10,
-                color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
-            ),
-            expand=True,
-        )
-
-        # Consultation Notes
-        consultation_notes = create_consultation_notes(selected_apt)
-
-        def update_selected_appointment(apt):
-            nonlocal selected_apt
-            selected_apt = apt
-            main_content.content = create_dashboard_ui_content(page, user)
-            page.update()
-        
-        # Main layout
-        return ft.Container(
-            expand=True,
-            bgcolor=HR_SECONDARY,
-            content=ft.Column([
-                # Header
-                create_header("Dashboard", user),
-                # Info Cards
+            ], expand=True)
+            print("[DEBUG] Dashboard content loaded successfully")
+            # Info cards row (always define before use)
+            info_cards = ft.Row([
+                create_stat_card("Appointments", str(len(appointments_data)), ft.Icons.CALENDAR_MONTH, HR_PRIMARY, 12.5),
+                create_stat_card("New Patients", str(len(patients_data)), ft.Icons.PERSON_ADD, HR_INFO, 8.3),
+                create_stat_card("Follow Up", str(len([a for a in appointments_data if a.get("status") == "Pending"])), ft.Icons.UPDATE, HR_WARNING, -2.1),
+            ], spacing=16)
+            return ft.Column([
+                header,
                 info_cards,
-                # Main Content
-                ft.Row([
-                    # Appointments List (Left)
-                    ft.Container(
-                        content=appointments_list,
-                        width=400,
-                        expand=False,
-                    ),
-                    # Spacing
-                    ft.Container(width=20),
-                    # Middle and Right Sections
-                    ft.Column([
-                        # Action buttons above the container
-                        action_buttons,
-                        ft.Container(height=12),
-                        # Ongoing Appointment (Top)
-                        ongoing_details,
-                        ft.Container(height=20),
-                        # Consultation Notes (Bottom)
-                        consultation_notes,
-                    ], expand=True, spacing=0),
-                ], expand=True, spacing=0),
-            ], spacing=24, scroll=ft.ScrollMode.AUTO, expand=True),
-            padding=ft.padding.all(24),
-        )
+                main_row,
+            ], spacing=24, expand=True)
+        except Exception as e:
+            print("[ERROR] Exception in create_dashboard_ui_content:", e)
+            import traceback; traceback.print_exc()
+            return ft.Container(content=ft.Text("Dashboard failed to load. Check logs for details."))
 
     def show_add_appointment_dialog():
         from database import get_all_patients, get_all_doctors, add_appointment
@@ -2905,30 +3275,69 @@ def dashboard_ui(page, user):
                             ),
                             bgcolor=row_bgcolor
                         )),
+                        ft.DataCell(
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_color=HR_ERROR,
+                                tooltip="Delete Appointment",
+                                on_click=lambda e, apt=apt: show_schedule_delete_modal(e.page, apt['id'], apt['patient_name'], handle_menu_selection)
+                            )
+                        ),
                     ],
                     on_select_changed=lambda e, apt=apt: handle_row_click(e, apt),
                     data=apt,
                 )
                 table_rows.append(row)
 
+            # Define status colors for the schedule tab
+            status_colors = {
+                "Scheduled": HR_SUCCESS,
+                "Completed": HR_INFO,
+                "Pending": HR_WARNING,
+                "Cancelled": HR_ERROR,
+                "No Show": HR_ERROR
+            }
             appointments_table = ft.DataTable(
                 columns=[
-                    ft.DataColumn(ft.Text(header)) for header in ["NAME", "DATE", "DOCTOR", "TYPE", "STATUS"]
+                    ft.DataColumn(ft.Text("Patient")),
+                    ft.DataColumn(ft.Text("Date")),
+                    ft.DataColumn(ft.Text("Doctor")),
+                    ft.DataColumn(ft.Text("Time")),
+                    ft.DataColumn(ft.Text("Status")),
+                    ft.DataColumn(ft.Text("Actions")),
                 ],
-                rows=table_rows,
-                border=ft.border.all(1, HR_BORDER),
-                border_radius=8,
-                vertical_lines=ft.border.BorderSide(1, HR_BORDER),
-                horizontal_lines=ft.border.BorderSide(1, HR_BORDER),
-                sort_column_index=0,
-                sort_ascending=True,
-                width=1200,
-                heading_row_color=HR_WHITE,
-                heading_text_style=ft.TextStyle(color=HR_TEXT, weight=ft.FontWeight.BOLD),
-                data_row_color=HR_WHITE,
-                data_row_min_height=50,
-                data_row_max_height=50,
-                data_text_style=ft.TextStyle(color=HR_TEXT),
+                rows=[
+                    ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(apt["patient_name"])),
+                            ft.DataCell(ft.Text((datetime.strptime(str(apt["appointment_date"]), "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d") if apt.get("appointment_date") else ""))),
+                            ft.DataCell(ft.Text(apt["doctor_name"])),
+                            ft.DataCell(ft.Text((datetime.strptime(str(apt["appointment_date"]), "%Y-%m-%d %H:%M:%S").strftime("%I:%M %p") if apt.get("appointment_date") else ""))),
+                            ft.DataCell(
+                                ft.Container(
+                                    content=ft.Text(
+                                        apt["status"],
+                                        color=ft.Colors.WHITE,
+                                        size=12,
+                                    ),
+                                    bgcolor=status_colors.get(apt.get("status", "Scheduled"), HR_TEXT),
+                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    border_radius=12,
+                                )
+                            ),
+                            ft.DataCell(
+                                ft.IconButton(
+                                    icon=ft.Icons.DELETE_OUTLINE,
+                                    icon_color=HR_ERROR,
+                                    tooltip="Delete Appointment",
+                                    on_click=lambda e, apt=apt: show_schedule_delete_modal(e.page, apt['id'], apt['patient_name'], handle_menu_selection)
+                                )
+                            ),
+                        ]
+                    )
+                    for apt in appointments_data
+                ],
+                width=1400,
             )
 
             # Top bar for Schedule tab
@@ -2946,15 +3355,6 @@ def dashboard_ui(page, user):
                     on_click=lambda e: show_add_appointment_dialog()
                 ),
                 ft.Container(width=10),
-                ft.ElevatedButton(
-                    "Delete Appointment",
-                    icon=ft.Icons.DELETE_OUTLINE,
-                    bgcolor=HR_ERROR,
-                    color=HR_WHITE,
-                    style=ft.ButtonStyle(),
-                    on_click=lambda e: create_delete_confirmation_dialog(page, selected_appointment["id"], selected_appointment["patient_name"], handle_menu_selection) if selected_appointment else None,
-                    disabled=not selected_appointment,
-                ),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
             # Pagination controls
@@ -3044,7 +3444,7 @@ def dashboard_ui(page, user):
     # Sidebar with menu handler
     sidebar = create_sidebar(page, "hr", handle_logout, current_selection, handle_menu_selection)
 
-    # Set initial content
+    # Set initial content to dashboard
     main_content.content = create_dashboard_ui_content(page, user)
 
     # Combine sidebar and content
@@ -3073,34 +3473,124 @@ def dashboard_ui(page, user):
     ], alignment=ft.MainAxisAlignment.END)
 
 # Add this at the top-level (outside any function):
-def create_delete_confirmation_dialog(page, appointment_id, patient_name, state):
-    def handle_delete(e):
+def show_schedule_delete_modal(page, appointment_id, patient_name, refresh_callback):
+    def handle_confirm_delete(e):
         from database import delete_appointment
         success, msg = delete_appointment(appointment_id)
         if success:
             page.snack_bar = ft.SnackBar(content=ft.Text("Appointment deleted successfully!"))
             page.snack_bar.open = True
             page.schedule_tab_state['selected_appointment'] = None
-            # Refresh the Schedule tab
-            state.handle_menu_selection("Schedule")
+            refresh_callback("Schedule")
         else:
             page.snack_bar = ft.SnackBar(content=ft.Text(f"Error: {msg}"))
             page.snack_bar.open = True
-        page.dialog.open = False
+        page.schedule_delete_modal.visible = False
         page.update()
     def handle_cancel(e):
-        page.dialog.open = False
+        page.schedule_delete_modal.visible = False
         page.update()
-    page.dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Confirm Delete"),
-        content=ft.Text(f"Are you sure you want to delete the appointment for {patient_name}?"),
-        actions=[
-            ft.TextButton("Cancel", on_click=handle_cancel),
-            ft.TextButton("Delete", on_click=handle_delete, style=ft.ButtonStyle(color=HR_ERROR)),
-        ],
-        actions_alignment=ft.MainAxisAlignment.END,
+    modal_content = ft.Container(
+        width=400,
+        height=180,
+        bgcolor=HR_WHITE,
+        border_radius=10,
+        border=ft.border.all(2, HR_PRIMARY),
+        padding=20,
+        content=ft.Column([
+            ft.Text("Confirm Delete", size=20, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+            ft.Container(height=10),
+            ft.Text(f"Are you sure you want to delete the appointment for {patient_name}?", color=HR_TEXT),
+            ft.Container(height=20),
+            ft.Row([
+                ft.ElevatedButton("Delete", style=ft.ButtonStyle(color=HR_WHITE, bgcolor=HR_ERROR), on_click=handle_confirm_delete),
+                ft.Container(width=10),
+                ft.OutlinedButton("Cancel", style=ft.ButtonStyle(color=HR_PRIMARY), on_click=handle_cancel),
+            ], alignment=ft.MainAxisAlignment.END),
+        ], spacing=0),
     )
-    page.dialog.open = True
+    if not hasattr(page, 'schedule_delete_modal'):
+        page.schedule_delete_modal = ft.Container(visible=False, alignment=ft.alignment.center)
+        page.overlay.append(page.schedule_delete_modal)
+    page.schedule_delete_modal.content = modal_content
+    page.schedule_delete_modal.visible = True
     page.update()
+
+def list_patients_missing_birthdate():
+    patients = get_all_patients()
+    missing_birthdate = []
+    for patient in patients:
+        birthdate = patient.get('birthdate')
+        if not birthdate:
+            missing_birthdate.append(patient)
+    if missing_birthdate:
+        print("Patients missing birthdate:")
+        for p in missing_birthdate:
+            print(f"ID: {p.get('id')}, Name: {p.get('full_name', 'Unknown')}")
+    else:
+        print("All patients have a valid birthdate.")
+
+def create_doctor_dashboard(page, user):
+    # Fetch pending appointments for the doctor
+    pending_appointments = get_pending_appointments(user['id'])
+    # Fetch assigned patients for the doctor
+    assigned_patients = get_assigned_patients(user['id'])
+    # Fetch unassigned patients
+    unassigned_patients = get_unassigned_patients()
+
+    # Create the dashboard layout
+    dashboard = ft.Column([
+        ft.Text("Doctor Dashboard", size=24, weight=ft.FontWeight.BOLD, color=HR_PRIMARY),
+        ft.Divider(height=10, color=HR_BORDER),
+        ft.Text("Pending Appointments", size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+        ft.Column([create_appointment_card(apt) for apt in pending_appointments], spacing=10),
+        ft.Text("Assigned Patients", size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+        ft.Column([create_patient_card(p) for p in assigned_patients], spacing=10),
+        ft.Text("Unassigned Patients", size=18, weight=ft.FontWeight.BOLD, color=HR_TEXT),
+        ft.Column([create_patient_card(p) for p in unassigned_patients], spacing=10),
+    ], spacing=20)
+
+    return dashboard
+
+def create_appointment_card(appointment):
+    return ft.Container(
+        content=ft.Column([
+            ft.Text(f"Patient: {appointment.get('patient_name', 'Unknown')}", size=16, color=HR_TEXT),
+            ft.Text(f"Date: {appointment.get('appointment_date', 'N/A')}", size=14, color=HR_TEXT),
+            ft.Text(f"Time: {appointment.get('appointment_time', 'N/A')}", size=14, color=HR_TEXT),
+            ft.Row([
+                ft.ElevatedButton("Accept", on_click=lambda e: accept_appointment(appointment['id'], appointment['doctor_id'])),
+                ft.ElevatedButton("Reject", on_click=lambda e: reject_appointment(appointment['id'])),
+            ], spacing=10),
+        ], spacing=5),
+        padding=10,
+        bgcolor=HR_WHITE,
+        border_radius=8,
+        border=ft.border.all(1, HR_BORDER),
+    )
+
+def get_pending_appointments(doctor_id):
+    # Fetch pending appointments for the doctor from the database
+    # This is a placeholder; replace with actual database logic
+    return []
+
+def get_assigned_patients(doctor_id):
+    # Fetch patients assigned to the doctor from the database
+    # This is a placeholder; replace with actual database logic
+    return []
+
+def get_unassigned_patients():
+    # Fetch patients without a doctor from the database
+    # This is a placeholder; replace with actual database logic
+    return []
+
+def accept_appointment(appointment_id, doctor_id):
+    # Update appointment status to "accepted" and assign doctor to the patient
+    # This is a placeholder; replace with actual database logic
+    pass
+
+def reject_appointment(appointment_id):
+    # Update appointment status to "rejected"
+    # This is a placeholder; replace with actual database logic
+    pass
 
